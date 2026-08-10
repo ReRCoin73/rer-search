@@ -6,35 +6,39 @@
     <title>ReR Search</title>
     <style>
         :root {
-            --bg-color: #121212;
+            --bg-color: #0a0a0a;
             --text-color: #e8eaed;
-            --border-color: #d3d3d3;
-            --accent-color: #d4af37;
+            --border-color: #333;
+            --accent-color: #c5a059;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Times New Roman', serif;
         }
         body { 
             background-color: var(--bg-color); 
             color: var(--text-color); 
-            font-family: 'Times New Roman', serif; 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
+            justify-content: center;
             min-height: 100vh; 
             padding: 20px; 
-            margin: 0;
-            box-sizing: border-box;
         }
         .user-profile { 
             position: absolute; 
-            top: 20px; 
-            right: 20px; 
+            top: 15px; 
+            right: 15px; 
             display: flex; 
             align-items: center; 
-            gap: 10px; 
-            font-size: 0.95rem; 
+            gap: 8px; 
+            font-size: 0.9rem; 
         }
         .avatar { 
-            width: 35px; 
-            height: 35px; 
+            width: 32px; 
+            height: 32px; 
             border-radius: 50%; 
             object-fit: cover; 
             border: 2px solid var(--accent-color); 
@@ -43,64 +47,79 @@
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            gap: 18px; 
-            margin-top: 15vh; 
-            margin-bottom: 28px; 
+            gap: 12px; 
+            margin-bottom: 25px; 
+            text-align: center;
+            flex-wrap: wrap;
         }
         .logo-img { 
-            width: 48px; 
-            height: 48px; 
+            width: 45px; 
+            height: 45px; 
             border-radius: 50%; 
             border: 2px solid var(--accent-color); 
             object-fit: cover;
         }
         .brand-title { 
-            font-size: 2.5rem; 
+            font-size: 2rem; 
             font-weight: bold; 
-            margin: 0;
+            white-space: nowrap;
         }
         .rer-part { 
             color: var(--accent-color); 
         }
+        .search-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            justify-content: center;
+        }
         .search-box { 
             width: 100%; 
-            max-width: 500px; 
             display: flex; 
             align-items: center; 
             border: 1.5px solid var(--border-color); 
-            border-radius: 28px; 
-            padding-right: 15px; 
-            background: rgba(255, 255, 255, 0.03);
-            box-sizing: border-box;
+            border-radius: 30px; 
+            padding: 0 12px; 
+            background: #161616;
+            transition: border-color 0.3s;
+        }
+        .search-box:focus-within {
+            border-color: var(--accent-color);
         }
         .search-input { 
             flex: 1; 
             background: transparent; 
             border: none; 
-            padding: 14px 20px; 
+            padding: 14px 10px; 
             color: var(--text-color); 
-            font-size: 1.1rem; 
+            font-size: 1rem; 
             outline: none; 
+            min-width: 0;
         }
         .icon-btn { 
             background: transparent; 
             border: none; 
             cursor: pointer; 
-            padding: 6px; 
-            opacity: 0.85; 
+            padding: 8px; 
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
         .icon-btn svg { 
-            width: 22px; 
-            height: 22px; 
-            fill: var(--text-color); 
+            width: 20px; 
+            height: 20px; 
+            fill: #999; 
+            transition: fill 0.3s;
+        }
+        .icon-btn:hover svg {
+            fill: var(--accent-color);
         }
     </style>
 </head>
 <body>
 
+    <!-- Perfil do Usuário (O texto 'Usuário' mudará dinamicamente ao integrar o login) -->
     <div class="user-profile">
         <span id="userName">Usuário</span>
         <img src="rer_logo.png" alt="Perfil" class="avatar">
@@ -112,32 +131,46 @@
         <img src="rer_logo.png" alt="Logo" class="logo-img">
     </div>
 
-    <div class="search-box">
-        <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens...">
-        <button class="icon-btn" onclick="startVoice()" title="Voz">
-            <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
-        </button>
-        <button class="icon-btn" onclick="startScanner()" title="Scanner">
-            <svg viewBox="0 0 24 24"><path d="M3 5v4h2V5h4V3H5a2 2 0 0 0-2 2m16-2h-4v2h4v4h2V5a2 2 0 0 0-2-2M3 19v-4h2v4h4v2H5a2 2 0 0 1-2-2m18 0a2 2 0 0 1-2 2h-4v-2h4v-4h2M7 7h10v10H7V7Z"/></svg>
-        </button>
+    <div class="search-container">
+        <form class="search-box" action="https://www.google.com/search" method="GET" target="_blank">
+            <input type="text" id="searchInput" name="q" class="search-input" placeholder="Pesquisar ativos, contratos..." required>
+            
+            <button type="button" class="icon-btn" onclick="startVoice()" title="Pesquisa por Voz">
+                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
+            </button>
+
+            <button type="button" class="icon-btn" onclick="startScanner()" title="Scanner de Contrato">
+                <svg viewBox="0 0 24 24"><path d="M4 4h3v2H5v2H3V5a1 1 0 0 1 1-1m16 0a1 1 0 0 1 1 1v3h-2V6h-2V4M4 20h3v-2H5v-2H3v3a1 1 0 0 1 1 1m16 0a1 1 0 0 0 1-1v-3h-2v2h-2v2M8 9h8v6H8V9Z"/></svg>
+            </button>
+        </form>
     </div>
 
     <script>
         function startVoice() {
-            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Seu navegador não suporta reconhecimento de voz.");
+                return;
+            }
+            const recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
             recognition.start();
+            
             recognition.onresult = (event) => {
-                document.getElementById('searchInput').value = event.results[0][0].transcript;
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('searchInput').value = transcript;
+                // Submete a busca automaticamente ao reconhecer a voz
+                document.querySelector('.search-box').submit();
             };
         }
 
         function startScanner() {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-                .then(stream => {
-                    alert("Câmera ativa para leitura de código/contrato.");
-                })
-                .catch(err => alert("Erro ao acessar a câmera."));
+            // Placeholder funcional para leitura de contrato/QR code
+            const input = prompt("Cole o hash do contrato ou use a leitura de QR Code:");
+            if (input) {
+                document.getElementById('searchInput').value = input;
+                document.querySelector('.search-box').submit();
+            }
         }
     </script>
 </body>
