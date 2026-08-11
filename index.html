@@ -131,30 +131,51 @@
         }
         @media (min-width: 900px) { .results-container { max-width: 720px; } }
         @media (max-width: 480px) { .results-container { max-width: 92vw; } }
-        .result-card {
+        /* Resultado estilo "link" (como no Google): título clicável + url + descrição */
+        .result-link {
             display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 14px 16px;
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            background: rgba(255,255,255,0.02);
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 4px;
+            margin-bottom: 18px;
+            text-decoration: none;
+            color: inherit;
         }
-        .result-card:hover { background: rgba(212,175,55,0.08); }
         .result-icon {
-            width: 34px; height: 34px; border-radius: 50%;
+            width: 28px; height: 28px; border-radius: 50%;
             border: 1.5px solid var(--accent-color); object-fit: cover; flex-shrink: 0;
+            margin-top: 2px;
         }
-        .result-info { min-width: 0; }
-        .result-name { font-weight: bold; font-size: 1.05rem; }
+        .result-info { min-width: 0; flex: 1; }
+        .result-url { font-size: 0.82rem; opacity: 0.65; word-break: break-all; margin-bottom: 2px; }
+        .result-name {
+            font-weight: bold; font-size: 1.1rem; color: var(--accent-color);
+            text-decoration: none;
+        }
+        .result-link:hover .result-name { text-decoration: underline; }
         .result-name .badge-new {
             font-size: 0.65rem; color: var(--bg-color); background: var(--accent-color);
             border-radius: 8px; padding: 2px 7px; margin-left: 8px; vertical-align: middle;
         }
-        .result-meta { font-size: 0.85rem; opacity: 0.7; word-break: break-all; }
+        .result-desc { font-size: 0.88rem; opacity: 0.8; margin-top: 3px; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
+
+        /* Cotação em destaque (mercado: cripto, dólar, euro etc.) */
+        .quote-box {
+            width: 100%;
+            border: 1.5px solid var(--accent-color);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 20px;
+            background: rgba(212,175,55,0.06);
+        }
+        .quote-title { font-size: 1rem; opacity: 0.8; }
+        .quote-value { font-size: 1.8rem; font-weight: bold; margin: 4px 0; }
+        .quote-change { font-size: 0.9rem; }
+        .quote-change.up { color: #4caf50; }
+        .quote-change.down { color: #e05252; }
+        .quote-source { font-size: 0.78rem; opacity: 0.6; margin-top: 6px; }
+        .quote-source a { color: inherit; }
 
         /* Modal de pagamento */
         .payment-overlay {
@@ -306,11 +327,100 @@
         // via DexScreener — indexa token assim que ganha liquidez em qualquer rede, sem precisar de chave.
         const resultsContainer = document.getElementById('resultsContainer');
 
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+        function normalize(str) {
+            return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        }
+
+        // ---- Cotações de mercado (moedas fiat e principais criptos) ----
+        // Cobre só o que é mercado/finanças: cripto, dólar, euro etc. Nada de conteúdo de comunidade/eventos.
+        const CRYPTO_IDS = {
+            bitcoin: 'bitcoin', btc: 'bitcoin',
+            ethereum: 'ethereum', eth: 'ethereum',
+            solana: 'solana', sol: 'solana',
+            tether: 'tether', usdt: 'tether',
+            bnb: 'binancecoin', binancecoin: 'binancecoin',
+            xrp: 'ripple', ripple: 'ripple',
+            cardano: 'cardano', ada: 'cardano',
+            dogecoin: 'dogecoin', doge: 'dogecoin',
+            tron: 'tron', trx: 'tron'
+        };
+        const FIAT_KEYWORDS = {
+            dolar: 'USD-BRL', dollar: 'USD-BRL', usd: 'USD-BRL',
+            euro: 'EUR-BRL', eur: 'EUR-BRL'
+        };
+
+        async function tryMarketQuote(qNorm) {
+            // Cripto via CoinGecko (sem chave)
+            const cryptoId = CRYPTO_IDS[qNorm] || (qNorm.includes('bitcoin') || qNorm === 'btc' ? 'bitcoin' : null);
+            if (cryptoId) {
+                try {
+                    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + cryptoId + '&vs_currencies=usd,brl&include_24hr_change=true');
+                    const data = await res.json();
+                    const d = data[cryptoId];
+                    if (d) {
+                        const change = d.usd_24h_change || 0;
+                        renderQuoteBox({
+                            title: cryptoId.charAt(0).toUpperCase() + cryptoId.slice(1) + ' (' + qNorm.toUpperCase() + ')',
+                            value: 'US$ ' + d.usd.toLocaleString('pt-BR', {maximumFractionDigits: 2}) + '  ·  R$ ' + d.brl.toLocaleString('pt-BR', {maximumFractionDigits: 2}),
+                            change: change,
+                            sourceUrl: 'https://www.coingecko.com/pt/moedas/' + cryptoId,
+                            sourceName: 'CoinGecko'
+                        });
+                        return true;
+                    }
+                } catch (err) { /* segue para outras fontes */ }
+            }
+            // Câmbio (dólar, euro) via AwesomeAPI (sem chave)
+            const fiatPair = FIAT_KEYWORDS[qNorm];
+            if (fiatPair) {
+                try {
+                    const res = await fetch('https://economia.awesomeapi.com.br/last/' + fiatPair);
+                    const data = await res.json();
+                    const key = fiatPair.replace('-', '');
+                    const d = data[key];
+                    if (d) {
+                        renderQuoteBox({
+                            title: (fiatPair === 'USD-BRL' ? 'Dólar americano' : 'Euro') + ' → Real',
+                            value: 'R$ ' + parseFloat(d.bid).toLocaleString('pt-BR', {minimumFractionDigits: 4}),
+                            change: parseFloat(d.pctChange),
+                            sourceUrl: 'https://www.awesomeapi.com.br/',
+                            sourceName: 'AwesomeAPI'
+                        });
+                        return true;
+                    }
+                } catch (err) { /* segue para outras fontes */ }
+            }
+            return false;
+        }
+
+        function renderQuoteBox(q) {
+            const changeClass = q.change >= 0 ? 'up' : 'down';
+            const changeSign = q.change >= 0 ? '+' : '';
+            const box = document.createElement('div');
+            box.className = 'quote-box';
+            box.innerHTML =
+                '<div class="quote-title">' + escapeHtml(q.title) + '</div>' +
+                '<div class="quote-value">' + q.value + '</div>' +
+                '<div class="quote-change ' + changeClass + '">' + changeSign + q.change.toFixed(2) + '% (24h)</div>' +
+                '<div class="quote-source">Fonte: <a href="' + q.sourceUrl + '" target="_blank">' + q.sourceName + '</a></div>';
+            resultsContainer.appendChild(box);
+        }
+
         async function runSearch(query) {
             resultsContainer.innerHTML = "";
             if (!query || !query.trim()) return;
             const q = query.trim();
+            const qNorm = normalize(q);
             resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
+
+            let gotQuote = false;
+            resultsContainer.innerHTML = "";
+            try {
+                gotQuote = await tryMarketQuote(qNorm);
+            } catch (err) { /* segue para busca de tokens */ }
 
             let pairs = [];
             try {
@@ -318,7 +428,7 @@
                 const data = await res.json();
                 pairs = data.pairs || [];
             } catch (err) {
-                resultsContainer.innerHTML = '<div class="no-results">Erro ao buscar. Tente novamente.</div>';
+                if (!gotQuote) resultsContainer.innerHTML = '<div class="no-results">Erro ao buscar. Tente novamente.</div>';
                 return;
             }
 
@@ -342,29 +452,31 @@
             });
 
             if (unique.length === 0) {
-                resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado exato para "' + q + '" no índice ReR.</div>';
+                if (!gotQuote) {
+                    resultsContainer.innerHTML += '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
+                }
                 return;
             }
 
-            resultsContainer.innerHTML = "";
             unique.forEach(p => {
                 const isNew = p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 24 * 60 * 60 * 1000;
                 const icon = (p.info && p.info.imageUrl) ? p.info.imageUrl : "rer_logo.png";
-                const card = document.createElement('div');
-                card.className = 'result-card';
-                card.onclick = () => openResult(p);
-                card.innerHTML =
+                const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
+                const liquidity = p.liquidity && p.liquidity.usd ? 'Liquidez: $' + Math.round(p.liquidity.usd).toLocaleString('pt-BR') : '';
+                const link = document.createElement('a');
+                link.className = 'result-link';
+                link.href = p.url || '#';
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.innerHTML =
                     '<img src="' + icon + '" class="result-icon" alt="" onerror="this.src=\'rer_logo.png\'">' +
                     '<div class="result-info">' +
-                        '<div class="result-name">' + p.baseToken.name + ' (' + p.baseToken.symbol + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</div>' +
-                        '<div class="result-meta">' + p.chainId + ' · ' + p.baseToken.address + '</div>' +
+                        '<div class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</div>' +
+                        '<div class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</div>' +
+                        '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>' +
                     '</div>';
-                resultsContainer.appendChild(card);
+                resultsContainer.appendChild(link);
             });
-        }
-
-        function openResult(pair) {
-            openPaymentModal(pair);
         }
 
         // ---- Pagamento Pix (Fase 4) ----
