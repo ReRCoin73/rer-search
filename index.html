@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReR Search</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #e8eaed;
+            --border-color: #e8eaed;
+            --accent-color: #d4af37;
+        }
+        /* Tema claro automático (quando o sistema/tela do usuário está em modo claro) */
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg-color: #ffffff;
+                --text-color: #121212;
+                --border-color: #121212;
+                --accent-color: #b8860b;
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Times New Roman', serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            margin: 0;
+        }
+        .user-profile {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95rem;
+        }
+        .avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent-color);
+        }
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            margin-top: 15vh;
+            margin-bottom: 28px;
+        }
+        .logo-img {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-color);
+            object-fit: cover;
+        }
+        .brand-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0;
+        }
+        .rer-part {
+            color: var(--accent-color);
+        }
+
+        /* Caixa de pesquisa: mais larga no desktop, mais justa no celular */
+        .search-box {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            align-items: center;
+            border: 1.5px solid var(--border-color);
+            border-radius: 28px;
+            padding-right: 15px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+        @media (min-width: 900px) {
+            .search-box { max-width: 720px; }
+        }
+        @media (max-width: 480px) {
+            .search-box { max-width: 92vw; border-radius: 24px; }
+            .search-input { padding: 12px 16px; font-size: 1rem; }
+            .header-container { margin-top: 10vh; gap: 12px; }
+            .brand-title { font-size: 2rem; }
+            .logo-img { width: 38px; height: 38px; }
+        }
+
+        .search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 14px 20px;
+            color: var(--text-color);
+            font-size: 1.1rem;
+            outline: none;
+            min-width: 0;
+        }
+        .icon-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            opacity: 0.85;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-btn.listening svg { fill: var(--accent-color); }
+        .icon-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: var(--text-color);
+        }
+
+        /* Resultados da busca (índice próprio, focado em cripto) */
+        .results-container {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 22px;
+        }
+        @media (min-width: 900px) { .results-container { max-width: 720px; } }
+        @media (max-width: 480px) { .results-container { max-width: 92vw; } }
+        .result-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.02);
+        }
+        .result-card:hover { background: rgba(212,175,55,0.08); }
+        .result-icon {
+            width: 34px; height: 34px; border-radius: 50%;
+            border: 1.5px solid var(--accent-color); object-fit: cover; flex-shrink: 0;
+        }
+        .result-info { min-width: 0; }
+        .result-name { font-weight: bold; font-size: 1.05rem; }
+        .result-name .badge-new {
+            font-size: 0.65rem; color: var(--bg-color); background: var(--accent-color);
+            border-radius: 8px; padding: 2px 7px; margin-left: 8px; vertical-align: middle;
+        }
+        .result-meta { font-size: 0.85rem; opacity: 0.7; word-break: break-all; }
+        .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
+
+        /* Modal de pagamento */
+        .payment-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1100;
+            align-items: center;
+            justify-content: center;
+        }
+        .payment-overlay.active { display: flex; }
+        .payment-card {
+            background: var(--bg-color);
+            color: var(--text-color);
+            border: 1.5px solid var(--accent-color);
+            border-radius: 16px;
+            padding: 26px 22px;
+            width: min(88vw, 340px);
+            text-align: center;
+        }
+        .payment-card h3 { margin: 0 0 12px; font-size: 1.2rem; }
+        .payment-card p { font-size: 0.9rem; line-height: 1.4; opacity: 0.9; margin: 0 0 18px; }
+        .payment-pix-btn {
+            font-family: inherit;
+            background: var(--accent-color);
+            color: #121212;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 22px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: bold;
+            width: 100%;
+        }
+        .payment-close {
+            margin-top: 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            opacity: 0.6;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .payment-status { margin-top: 14px; font-size: 0.85rem; min-height: 1.2em; }
+        .pix-qr { width: 180px; height: 180px; margin: 14px auto; display: block; border-radius: 8px; }
+        .pix-copia { font-size: 0.75rem; word-break: break-all; opacity: 0.8; margin-top: 8px; }
+
+        /* Modal do scanner */
+        .scanner-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 1000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .scanner-overlay.active { display: flex; }
+        .scanner-video {
+            width: min(92vw, 480px);
+            max-height: 65vh;
+            border-radius: 12px;
+            border: 2px solid var(--accent-color);
+            background: #000;
+        }
+        .scanner-actions {
+            display: flex;
+            gap: 14px;
+            margin-top: 18px;
+        }
+        .scanner-btn {
+            font-family: inherit;
+            background: transparent;
+            border: 1.5px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 10px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+        .scanner-btn:hover { background: rgba(212,175,55,0.12); }
+        .scanner-status {
+            margin-top: 14px;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            max-width: 90vw;
+            text-align: center;
+            min-height: 1.2em;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="user-profile">
+        <span id="userName">Usuário</span>
+        <img src="rer_logo.png" alt="Perfil" class="avatar">
+    </div>
+
+    <div class="header-container">
+        <img src="rer_logo.png" alt="Logo" class="logo-img">
+        <h1 class="brand-title"><span class="rer-part">ReR</span> Search</h1>
+        <img src="rer_logo.png" alt="Logo" class="logo-img">
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens...">
+        <button class="icon-btn" id="voiceBtn" onclick="startVoice()" title="Voz">
+            <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
+        </button>
+        <button class="icon-btn" onclick="startScanner()" title="Scanner">
+            <svg viewBox="0 0 24 24"><path d="M3 5v4h2V5h4V3H5a2 2 0 0 0-2 2m16-2h-4v2h4v4h2V5a2 2 0 0 0-2-2M3 19v-4h2v4h4v2H5a2 2 0 0 1-2-2m18 0a2 2 0 0 1-2 2h-4v-2h4v-4h2M7 7h10v10H7V7Z"/></svg>
+        </button>
+    </div>
+
+    <div class="results-container" id="resultsContainer"></div>
+
+    <!-- Modal de pagamento (acesso vitalício via Pix) -->
+    <div class="payment-overlay" id="paymentOverlay">
+        <div class="payment-card">
+            <h3 id="paymentTokenName">Acesso à busca ReR</h3>
+            <p>O ReR Search existe pra te dar resultado limpo de cripto, sem ruído de internet. Manter isso no ar tem custo. Com <strong>US$1</strong> (via Pix), pago uma única vez, você garante acesso vitalício e ajuda o projeto a continuar de pé.</p>
+            <div id="pixArea">
+                <button class="payment-pix-btn" onclick="initiatePixPayment()">Pagar com Pix — US$1</button>
+            </div>
+            <div class="payment-status" id="paymentStatus"></div>
+            <button class="payment-close" onclick="closePaymentModal()">Fechar</button>
+        </div>
+    </div>
+
+    <!-- Modal do scanner (QR code + texto), estilo Google Lens -->
+    <div class="scanner-overlay" id="scannerOverlay">
+        <video id="scannerVideo" class="scanner-video" autoplay playsinline muted></video>
+        <canvas id="scannerCanvas" style="display:none;"></canvas>
+        <div class="scanner-status" id="scannerStatus">Aponte a câmera para um QR Code ou texto</div>
+        <div class="scanner-actions">
+            <button class="scanner-btn" onclick="captureText()">Capturar texto</button>
+            <button class="scanner-btn" onclick="closeScanner()">Fechar</button>
+        </div>
+    </div>
+
+    <script>
+        // Fase 4 (ainda não ativa): endereço da carteira Supply do RERC.
+        // Preencher aqui quando a carteira estiver pronta.
+        const SUPPLY_WALLET_ADDRESS = "";
+
+        // Fase 3: busca real, multi-rede (Ethereum, Polygon, BSC, Solana, etc.)
+        // via DexScreener — indexa token assim que ganha liquidez em qualquer rede, sem precisar de chave.
+        const resultsContainer = document.getElementById('resultsContainer');
+
+        async function runSearch(query) {
+            resultsContainer.innerHTML = "";
+            if (!query || !query.trim()) return;
+            const q = query.trim();
+            resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
+
+            let pairs = [];
+            try {
+                const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(q));
+                const data = await res.json();
+                pairs = data.pairs || [];
+            } catch (err) {
+                resultsContainer.innerHTML = '<div class="no-results">Erro ao buscar. Tente novamente.</div>';
+                return;
+            }
+
+            // Foco: só bate exato no nome, símbolo ou endereço do contrato — nada "parecido".
+            const qLower = q.toLowerCase();
+            const matches = pairs.filter(p =>
+                p.baseToken && (
+                    p.baseToken.name.toLowerCase() === qLower ||
+                    p.baseToken.symbol.toLowerCase() === qLower ||
+                    p.baseToken.address.toLowerCase() === qLower
+                )
+            );
+
+            // Remove duplicados do mesmo token na mesma rede
+            const seen = new Set();
+            const unique = matches.filter(p => {
+                const key = p.chainId + p.baseToken.address;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+
+            if (unique.length === 0) {
+                resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado exato para "' + q + '" no índice ReR.</div>';
+                return;
+            }
+
+            resultsContainer.innerHTML = "";
+            unique.forEach(p => {
+                const isNew = p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 24 * 60 * 60 * 1000;
+                const icon = (p.info && p.info.imageUrl) ? p.info.imageUrl : "rer_logo.png";
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.onclick = () => openResult(p);
+                card.innerHTML =
+                    '<img src="' + icon + '" class="result-icon" alt="" onerror="this.src=\'rer_logo.png\'">' +
+                    '<div class="result-info">' +
+                        '<div class="result-name">' + p.baseToken.name + ' (' + p.baseToken.symbol + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</div>' +
+                        '<div class="result-meta">' + p.chainId + ' · ' + p.baseToken.address + '</div>' +
+                    '</div>';
+                resultsContainer.appendChild(card);
+            });
+        }
+
+        function openResult(pair) {
+            openPaymentModal(pair);
+        }
+
+        // ---- Pagamento Pix (Fase 4) ----
+        // BACKEND_URL: preencher quando o servidor (com a chave Efí) estiver no ar.
+        // Ele deve expor:
+        //   POST {BACKEND_URL}/pix/criar   -> { valorUSD, tokenNome } => { qrCodeBase64, copiaECola, cobrancaId }
+        //   GET  {BACKEND_URL}/pix/status/{cobrancaId} -> { pago: true|false }
+        const BACKEND_URL = "";
+
+        let currentPair = null;
+        let statusPollId = null;
+        const paymentOverlay = document.getElementById('paymentOverlay');
+        const paymentStatus = document.getElementById('paymentStatus');
+        const pixArea = document.getElementById('pixArea');
+
+        function openPaymentModal(pair) {
+            currentPair = pair;
+            document.getElementById('paymentTokenName').textContent = "Acesso: " + pair.baseToken.name;
+            pixArea.innerHTML = '<button class="payment-pix-btn" onclick="initiatePixPayment()">Pagar com Pix — US$1</button>';
+            paymentStatus.textContent = "";
+            paymentOverlay.classList.add('active');
+        }
+
+        function closePaymentModal() {
+            paymentOverlay.classList.remove('active');
+            if (statusPollId) clearInterval(statusPollId);
+        }
+
+        async function initiatePixPayment() {
+            if (!BACKEND_URL) {
+                paymentStatus.textContent = "Pagamento indisponível no momento. Configuração pendente.";
+                return;
+            }
+            paymentStatus.textContent = "Gerando pagamento...";
+            try {
+                const res = await fetch(BACKEND_URL + "/pix/criar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ valorUSD: 1, tokenNome: currentPair.baseToken.name })
+                });
+                const data = await res.json();
+                paymentStatus.textContent = "Abrindo pagamento...";
+                pollPaymentStatus(data.cobrancaId);
+                window.open(data.checkoutUrl, "_blank");
+            } catch (err) {
+                paymentStatus.textContent = "Erro ao gerar pagamento. Tente novamente.";
+            }
+        }
+
+        function pollPaymentStatus(cobrancaId) {
+            statusPollId = setInterval(async () => {
+                try {
+                    const res = await fetch(BACKEND_URL + "/pix/status/" + cobrancaId);
+                    const data = await res.json();
+                    if (data.pago) {
+                        clearInterval(statusPollId);
+                        paymentStatus.textContent = "Pagamento confirmado! Acesso liberado.";
+                        setTimeout(closePaymentModal, 2000);
+                    }
+                } catch (err) { /* mantém tentando */ }
+            }, 4000);
+        }
+
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') runSearch(e.target.value);
+        });
+
+        function startVoice() {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                alert("Reconhecimento de voz não suportado neste navegador.");
+                return;
+            }
+            const recognition = new SpeechRec();
+            const btn = document.getElementById('voiceBtn');
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = false;
+            btn.classList.add('listening');
+            recognition.start();
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('searchInput').value = transcript;
+                runSearch(transcript);
+            };
+            recognition.onerror = () => btn.classList.remove('listening');
+            recognition.onend = () => btn.classList.remove('listening');
+        }
+
+        // ---- Scanner: câmera real, leitura de QR Code e captura de texto ----
+        let scannerStream = null;
+        let scanLoopId = null;
+        const video = document.getElementById('scannerVideo');
+        const canvas = document.getElementById('scannerCanvas');
+        const overlay = document.getElementById('scannerOverlay');
+        const status = document.getElementById('scannerStatus');
+
+        function startScanner() {
+            overlay.classList.add('active');
+            status.textContent = "Aponte a câmera para um QR Code ou texto";
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(stream => {
+                    scannerStream = stream;
+                    video.srcObject = stream;
+                    video.play();
+                    scanLoopId = requestAnimationFrame(scanQRLoop);
+                })
+                .catch(() => {
+                    status.textContent = "Não foi possível acessar a câmera.";
+                });
+        }
+
+        function scanQRLoop() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code && code.data) {
+                    status.textContent = "QR Code detectado: " + code.data;
+                    document.getElementById('searchInput').value = code.data;
+                    closeScanner();
+                    runSearch(code.data);
+                    return;
+                }
+            }
+            scanLoopId = requestAnimationFrame(scanQRLoop);
+        }
+
+        function captureText() {
+            if (!video.videoWidth) return;
+            status.textContent = "Lendo texto...";
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(blob => {
+                Tesseract.recognize(blob, 'por')
+                    .then(({ data: { text } }) => {
+                        const clean = text.trim();
+                        if (clean) {
+                            document.getElementById('searchInput').value = clean;
+                            status.textContent = "Texto capturado.";
+                            closeScanner();
+                            runSearch(clean);
+                        } else {
+                            status.textContent = "Nenhum texto reconhecido, tente novamente.";
+                        }
+                    })
+                    .catch(() => { status.textContent = "Erro ao ler o texto."; });
+            });
+        }
+
+        function closeScanner() {
+            overlay.classList.remove('active');
+            if (scanLoopId) cancelAnimationFrame(scanLoopId);
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(t => t.stop());
+                scannerStream = null;
+            }
+        }
+    </script>
+</body>
+</html>
