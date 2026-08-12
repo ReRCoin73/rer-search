@@ -44,7 +44,7 @@
             margin-bottom: 4px;
         }
         .brand-title {
-            font-size: 2.5rem;
+            font-size: 3.1rem;
             font-weight: bold;
             margin: 0;
         }
@@ -73,7 +73,7 @@
             .search-box { max-width: 92vw; border-radius: 24px; }
             .search-input { padding: 12px 16px; font-size: 1rem; }
             .header-container { margin-top: 7vh; }
-            .brand-title { font-size: 2rem; }
+            .brand-title { font-size: 2.5rem; }
         }
 
         .search-input {
@@ -333,7 +333,7 @@
         // CONFIGURAÇÃO — preencher quando tiver as chaves.
         // =====================================================================
         // Tavily (busca ampla filtrada em sites de mercado/cripto): tavily.com -> conta grátis -> API key.
-        const TAVILY_API_KEY = ""; // <-- cole aqui a chave (tvly-...)
+        const TAVILY_API_KEY = "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"; // <-- cole aqui a chave (tvly-...)
         // Domínios liberados pra busca ampla: sites oficiais de projetos, exploradores de blockchain,
         // GitHub, CoinGecko/CoinMarketCap, e imprensa financeira séria. Ajuste essa lista à vontade.
         const TAVILY_INCLUDE_DOMAINS = [
@@ -436,11 +436,17 @@
                     seen.add(key);
                     return true;
                 });
-                // Ordena por liquidez (mais relevante primeiro) e corta ruído de token-ponte com pouca liquidez
+                // Ordena por liquidez (mais relevante primeiro).
                 unique.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
-                const MIN_LIQUIDITY = 20000;
-                const filtered = unique.filter(p => (p.liquidity?.usd || 0) >= MIN_LIQUIDITY);
-                return (filtered.length ? filtered : unique).slice(0, 3);
+                // O filtro de liquidez mínima só entra quando há MUITOS resultados (ruído real,
+                // tipo "bitcoin" trazendo dezenas de token-ponte). Com poucos resultados — caso
+                // de um token pequeno/novo tipo RERC — mostra tudo, mesmo com liquidez baixa.
+                if (unique.length > 3) {
+                    const MIN_LIQUIDITY = 20000;
+                    const filtered = unique.filter(p => (p.liquidity?.usd || 0) >= MIN_LIQUIDITY);
+                    return (filtered.length ? filtered : unique).slice(0, 3);
+                }
+                return unique;
             } catch (err) {
                 return [];
             }
@@ -596,25 +602,42 @@
             renderSparkline(el.querySelector('.coin-spark'), sparkPrices);
         }
 
-        async function loadCoinGeckoCard(id, ticker) {
-            const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
-            if (!el) return;
+        async function fetchWithRetry(url, tries) {
+            tries = tries || 2;
+            for (let i = 0; i < tries; i++) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) return await res.json();
+                } catch (err) { /* tenta de novo */ }
+                if (i < tries - 1) await new Promise(r => setTimeout(r, 600));
+            }
+            throw new Error('falha ao buscar ' + url);
+        }
+
+        async function loadAllCoinGeckoCards(ids) {
             try {
-                const [priceRes, chartRes] = await Promise.all([
-                    fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + id + '&vs_currencies=usd&include_24hr_change=true'),
-                    fetch('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=1')
-                ]);
-                const priceData = await priceRes.json();
-                const chartData = await chartRes.json();
-                const prices = (chartData.prices || []).map(p => p[1]);
-                fillCoinCard(el, {
-                    price: priceData[id].usd,
-                    changePct: priceData[id].usd_24h_change || 0,
-                    sparkPrices: prices,
-                    currency: 'US$ '
-                });
+                // 1 chamada só pra preço/variação dos 3 (evita bater o limite de pedidos por segundo)
+                const priceData = await fetchWithRetry('https://api.coingecko.com/api/v3/simple/price?ids=' + ids.join(',') + '&vs_currencies=usd&include_24hr_change=true');
+                for (const id of ids) {
+                    const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
+                    if (!el || !priceData[id]) continue;
+                    let prices = [];
+                    try {
+                        const chartData = await fetchWithRetry('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=1');
+                        prices = (chartData.prices || []).map(p => p[1]);
+                    } catch (err) { /* segue sem sparkline */ }
+                    fillCoinCard(el, {
+                        price: priceData[id].usd,
+                        changePct: priceData[id].usd_24h_change || 0,
+                        sparkPrices: prices,
+                        currency: 'US$ '
+                    });
+                }
             } catch (err) {
-                el.querySelector('.coin-price').textContent = 'indisponível';
+                ids.forEach(id => {
+                    const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
+                    if (el) el.querySelector('.coin-price').textContent = 'indisponível';
+                });
             }
         }
 
@@ -622,8 +645,7 @@
             const el = document.querySelector('.coin-card[data-coin="rerc"]');
             if (!el) return;
             try {
-                const res = await fetch('https://api.dexscreener.com/latest/dex/search?q=RERC');
-                const data = await res.json();
+                const data = await fetchWithRetry('https://api.dexscreener.com/latest/dex/search?q=RERC');
                 const pairs = (data.pairs || []).filter(p => p.baseToken && p.baseToken.symbol.toUpperCase() === 'RERC' && p.chainId === 'polygon');
                 if (!pairs.length) throw new Error('sem par encontrado');
                 // pega o par de maior liquidez
@@ -631,8 +653,7 @@
                 const pair = pairs[0];
                 let sparkPrices = [];
                 try {
-                    const ohlcvRes = await fetch('https://api.geckoterminal.com/api/v2/networks/polygon_pos/pools/' + pair.pairAddress + '/ohlcv/hour?limit=24');
-                    const ohlcvData = await ohlcvRes.json();
+                    const ohlcvData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/polygon_pos/pools/' + pair.pairAddress + '/ohlcv/hour?limit=24');
                     const list = ohlcvData.data?.attributes?.ohlcv_list || [];
                     sparkPrices = list.map(row => row[4]).reverse(); // close price, ordem cronológica
                 } catch (err) { /* sem sparkline, segue só com o preço */ }
@@ -648,9 +669,7 @@
         }
 
         function loadHomeCards() {
-            loadCoinGeckoCard('bitcoin', 'BTC');
-            loadCoinGeckoCard('solana', 'SOL');
-            loadCoinGeckoCard('ethereum', 'ETH');
+            loadAllCoinGeckoCards(['bitcoin', 'solana', 'ethereum']);
             loadRercCard();
         }
         loadHomeCards();
@@ -706,10 +725,10 @@
                 return data[CRYPTO_CONVERT[code]].usd;
             }
             if (code === 'USD') return 1;
-            // moeda fiat: quantos USD vale 1 unidade dessa moeda
-            const res = await fetch('https://api.frankfurter.dev/v1/latest?from=' + code + '&to=USD');
+            // moeda fiat: quantos USD vale 1 unidade dessa moeda (endpoint v2, atual)
+            const res = await fetch('https://api.frankfurter.dev/v2/rate/' + code + '/USD');
             const data = await res.json();
-            return data.rates.USD;
+            return data.rate;
         }
 
         async function runConversion() {
