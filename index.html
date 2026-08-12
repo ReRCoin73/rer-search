@@ -12,21 +12,22 @@
             --text-color: #e8eaed;
             --border-color: #e8eaed;
             --accent-color: #d4af37;
+            --muted-color: #9aa0a6;
         }
-        /* Tema claro automático (quando o sistema/tela do usuário está em modo claro) */
         @media (prefers-color-scheme: light) {
             :root {
                 --bg-color: #ffffff;
                 --text-color: #121212;
                 --border-color: #121212;
                 --accent-color: #b8860b;
+                --muted-color: #5f6368;
             }
         }
         * { box-sizing: border-box; }
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
-            font-family: 'Times New Roman', serif;
+            font-family: 'Times New Roman', Times, serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -34,47 +35,29 @@
             padding: 20px;
             margin: 0;
         }
-        .user-profile {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.95rem;
-        }
-        .avatar {
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid var(--accent-color);
-        }
+
         .header-container {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 18px;
-            margin-top: 15vh;
-            margin-bottom: 28px;
-        }
-        .logo-img {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            border: 2px solid var(--accent-color);
-            object-fit: cover;
+            margin-top: 10vh;
+            margin-bottom: 4px;
         }
         .brand-title {
             font-size: 2.5rem;
             font-weight: bold;
             margin: 0;
         }
-        .rer-part {
-            color: var(--accent-color);
+        .rer-part { color: var(--accent-color); }
+        .slogan {
+            font-family: 'Times New Roman', Times, serif;
+            color: var(--muted-color);
+            font-size: 1rem;
+            letter-spacing: 0.5px;
+            margin: 2px 0 26px;
+            text-align: center;
         }
 
-        /* Caixa de pesquisa: mais larga no desktop, mais justa no celular */
         .search-box {
             width: 100%;
             max-width: 600px;
@@ -85,15 +68,12 @@
             padding-right: 15px;
             background: rgba(255, 255, 255, 0.03);
         }
-        @media (min-width: 900px) {
-            .search-box { max-width: 720px; }
-        }
+        @media (min-width: 900px) { .search-box { max-width: 720px; } }
         @media (max-width: 480px) {
             .search-box { max-width: 92vw; border-radius: 24px; }
             .search-input { padding: 12px 16px; font-size: 1rem; }
-            .header-container { margin-top: 10vh; gap: 12px; }
+            .header-container { margin-top: 7vh; }
             .brand-title { font-size: 2rem; }
-            .logo-img { width: 38px; height: 38px; }
         }
 
         .search-input {
@@ -117,13 +97,82 @@
             justify-content: center;
         }
         .icon-btn.listening svg { fill: var(--accent-color); }
-        .icon-btn svg {
-            width: 22px;
-            height: 22px;
-            fill: var(--text-color);
-        }
+        .icon-btn svg { width: 22px; height: 22px; fill: var(--text-color); }
 
-        /* Resultados da busca (índice próprio, focado em cripto) */
+        /* ---- Widgets da tela inicial (somem quando há resultado de busca) ---- */
+        .home-widgets {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 28px;
+        }
+        @media (min-width: 900px) { .home-widgets { max-width: 720px; } }
+        @media (max-width: 480px) { .home-widgets { max-width: 92vw; } }
+        .home-widgets.hidden { display: none; }
+
+        .coin-row {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+        .coin-card {
+            flex: 1 1 0;
+            min-width: 130px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 12px 14px;
+            background: rgba(255,255,255,0.02);
+        }
+        .coin-card.rerc-card { border-color: var(--accent-color); background: rgba(212,175,55,0.05); }
+        .coin-ticker { font-weight: bold; font-size: 0.95rem; }
+        .coin-price { font-size: 0.8rem; opacity: 0.75; margin-top: 2px; }
+        .coin-change { font-size: 1rem; font-weight: bold; margin-top: 4px; }
+        .coin-change.up { color: #4caf50; }
+        .coin-change.down { color: #e05252; }
+        .coin-spark { width: 100%; height: 32px; margin-top: 6px; display: block; }
+
+        /* ---- Conversor ---- */
+        .converter-box {
+            margin-top: 22px;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            background: rgba(255,255,255,0.02);
+        }
+        .converter-title { font-size: 0.95rem; opacity: 0.75; margin-bottom: 10px; }
+        .converter-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+        }
+        .converter-row:last-child { margin-bottom: 0; }
+        .converter-amount {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.3rem;
+            font-family: inherit;
+            outline: none;
+            min-width: 0;
+        }
+        .converter-select {
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+            max-width: 42%;
+        }
+        .converter-select option { color: #000; }
+        .converter-note { font-size: 0.75rem; opacity: 0.55; margin-top: 8px; text-align: center; }
+
+        /* ---- Resultados da busca ---- */
         .results-container {
             width: 100%;
             max-width: 600px;
@@ -131,42 +180,33 @@
         }
         @media (min-width: 900px) { .results-container { max-width: 720px; } }
         @media (max-width: 480px) { .results-container { max-width: 92vw; } }
-        /* Resultado estilo "link" (como no Google): título clicável + url + descrição */
+
         .result-link {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
+            display: block;
             padding: 12px 4px;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
             text-decoration: none;
             color: inherit;
         }
-        .result-icon {
-            width: 28px; height: 28px; border-radius: 50%;
-            border: 1.5px solid var(--accent-color); object-fit: cover; flex-shrink: 0;
-            margin-top: 2px;
-        }
-        .result-info { min-width: 0; flex: 1; }
         .result-url { font-size: 0.82rem; opacity: 0.65; word-break: break-all; margin-bottom: 2px; }
         .result-name {
-            font-weight: bold; font-size: 1.1rem; color: var(--accent-color);
-            text-decoration: none;
+            font-weight: bold; font-size: 1.15rem; color: var(--accent-color);
+            display: block;
         }
         .result-link:hover .result-name { text-decoration: underline; }
         .result-name .badge-new {
-            font-size: 0.65rem; color: var(--bg-color); background: var(--accent-color);
+            font-size: 0.6rem; color: var(--bg-color); background: var(--accent-color);
             border-radius: 8px; padding: 2px 7px; margin-left: 8px; vertical-align: middle;
         }
-        .result-desc { font-size: 0.88rem; opacity: 0.8; margin-top: 3px; }
+        .result-desc { font-size: 0.9rem; opacity: 0.8; margin-top: 3px; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
 
-        /* Cotação em destaque (mercado: cripto, dólar, euro etc.) */
         .quote-box {
             width: 100%;
             border: 1.5px solid var(--accent-color);
             border-radius: 14px;
             padding: 16px 18px;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
             background: rgba(212,175,55,0.06);
         }
         .quote-title { font-size: 1rem; opacity: 0.8; }
@@ -176,53 +216,6 @@
         .quote-change.down { color: #e05252; }
         .quote-source { font-size: 0.78rem; opacity: 0.6; margin-top: 6px; }
         .quote-source a { color: inherit; }
-
-        /* Modal de pagamento */
-        .payment-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.7);
-            z-index: 1100;
-            align-items: center;
-            justify-content: center;
-        }
-        .payment-overlay.active { display: flex; }
-        .payment-card {
-            background: var(--bg-color);
-            color: var(--text-color);
-            border: 1.5px solid var(--accent-color);
-            border-radius: 16px;
-            padding: 26px 22px;
-            width: min(88vw, 340px);
-            text-align: center;
-        }
-        .payment-card h3 { margin: 0 0 12px; font-size: 1.2rem; }
-        .payment-card p { font-size: 0.9rem; line-height: 1.4; opacity: 0.9; margin: 0 0 18px; }
-        .payment-pix-btn {
-            font-family: inherit;
-            background: var(--accent-color);
-            color: #121212;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 22px;
-            cursor: pointer;
-            font-size: 0.95rem;
-            font-weight: bold;
-            width: 100%;
-        }
-        .payment-close {
-            margin-top: 12px;
-            background: transparent;
-            border: none;
-            color: var(--text-color);
-            opacity: 0.6;
-            cursor: pointer;
-            font-size: 0.85rem;
-        }
-        .payment-status { margin-top: 14px; font-size: 0.85rem; min-height: 1.2em; }
-        .pix-qr { width: 180px; height: 180px; margin: 14px auto; display: block; border-radius: 8px; }
-        .pix-copia { font-size: 0.75rem; word-break: break-all; opacity: 0.8; margin-top: 8px; }
 
         /* Modal do scanner */
         .scanner-overlay {
@@ -243,11 +236,7 @@
             border: 2px solid var(--accent-color);
             background: #000;
         }
-        .scanner-actions {
-            display: flex;
-            gap: 14px;
-            margin-top: 18px;
-        }
+        .scanner-actions { display: flex; gap: 14px; margin-top: 18px; }
         .scanner-btn {
             font-family: inherit;
             background: transparent;
@@ -271,19 +260,14 @@
 </head>
 <body>
 
-    <div class="user-profile">
-        <span id="userName">Usuário</span>
-        <img src="rer_logo.png" alt="Perfil" class="avatar">
-    </div>
-
     <div class="header-container">
-        <img src="rer_logo.png" alt="Logo" class="logo-img">
         <h1 class="brand-title"><span class="rer-part">ReR</span> Search</h1>
-        <img src="rer_logo.png" alt="Logo" class="logo-img">
     </div>
+    <div class="slogan">Cripto - Câmbio - Token</div>
 
     <div class="search-box">
-        <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens...">
+        <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens..." list="suggestionList" autocomplete="off">
+        <datalist id="suggestionList"></datalist>
         <button class="icon-btn" id="voiceBtn" onclick="startVoice()" title="Voz">
             <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
         </button>
@@ -292,20 +276,30 @@
         </button>
     </div>
 
-    <div class="results-container" id="resultsContainer"></div>
+    <!-- Widgets da tela inicial: 4 cards + conversor. Somem quando há busca. -->
+    <div class="home-widgets" id="homeWidgets">
+        <div class="coin-row" id="coinRow">
+            <div class="coin-card" data-coin="bitcoin"><div class="coin-ticker">BTC</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
+            <div class="coin-card rerc-card" data-coin="rerc"><div class="coin-ticker">RERC</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
+            <div class="coin-card" data-coin="solana"><div class="coin-ticker">SOL</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
+            <div class="coin-card" data-coin="ethereum"><div class="coin-ticker">ETH</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
+        </div>
 
-    <!-- Modal de pagamento (acesso vitalício via Pix) -->
-    <div class="payment-overlay" id="paymentOverlay">
-        <div class="payment-card">
-            <h3 id="paymentTokenName">Acesso à busca ReR</h3>
-            <p>O ReR Search existe pra te dar resultado limpo de cripto, sem ruído de internet. Manter isso no ar tem custo. Com <strong>US$1</strong> (via Pix), pago uma única vez, você garante acesso vitalício e ajuda o projeto a continuar de pé.</p>
-            <div id="pixArea">
-                <button class="payment-pix-btn" onclick="initiatePixPayment()">Pagar com Pix — US$1</button>
+        <div class="converter-box">
+            <div class="converter-title">Conversor</div>
+            <div class="converter-row">
+                <input type="number" id="convAmountFrom" class="converter-amount" value="1">
+                <select id="convFrom" class="converter-select"></select>
             </div>
-            <div class="payment-status" id="paymentStatus"></div>
-            <button class="payment-close" onclick="closePaymentModal()">Fechar</button>
+            <div class="converter-row">
+                <input type="number" id="convAmountTo" class="converter-amount" readonly>
+                <select id="convTo" class="converter-select"></select>
+            </div>
+            <div class="converter-note" id="convNote">Cotações de mercado, apenas referência.</div>
         </div>
     </div>
+
+    <div class="results-container" id="resultsContainer"></div>
 
     <!-- Modal do scanner (QR code + texto), estilo Google Lens -->
     <div class="scanner-overlay" id="scannerOverlay">
@@ -319,13 +313,21 @@
     </div>
 
     <script>
-        // Fase 4 (ainda não ativa): endereço da carteira Supply do RERC.
-        // Preencher aqui quando a carteira estiver pronta.
-        const SUPPLY_WALLET_ADDRESS = "";
+        // =====================================================================
+        // CONFIGURAÇÃO — preencher quando tiver as chaves.
+        // =====================================================================
+        // Tavily (busca ampla filtrada em sites de mercado/cripto): tavily.com -> conta grátis -> API key.
+        const TAVILY_API_KEY = "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"; // <-- cole aqui a chave (tvly-...)
+        // Domínios liberados pra busca ampla: sites oficiais de projetos, exploradores de blockchain,
+        // GitHub, Reddit, CoinGecko/CoinMarketCap etc. Ajuste essa lista à vontade.
+        const TAVILY_INCLUDE_DOMAINS = [
+            "github.com", "reddit.com", "polygonscan.com", "etherscan.io", "bscscan.com",
+            "solscan.io", "tronscan.org", "coingecko.com", "coinmarketcap.com",
+            "dexscreener.com", "geckoterminal.com", "docs.*", "*.gitbook.io"
+        ];
 
-        // Fase 3: busca real, multi-rede (Ethereum, Polygon, BSC, Solana, etc.)
-        // via DexScreener — indexa token assim que ganha liquidez em qualquer rede, sem precisar de chave.
         const resultsContainer = document.getElementById('resultsContainer');
+        const homeWidgets = document.getElementById('homeWidgets');
 
         function escapeHtml(str) {
             return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -334,8 +336,9 @@
             return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
         }
 
-        // ---- Cotações de mercado (moedas fiat e principais criptos) ----
-        // Cobre só o que é mercado/finanças: cripto, dólar, euro etc. Nada de conteúdo de comunidade/eventos.
+        // =====================================================================
+        // Cotações de mercado (cripto e câmbio) — usado na busca por termo exato
+        // =====================================================================
         const CRYPTO_IDS = {
             bitcoin: 'bitcoin', btc: 'bitcoin',
             ethereum: 'ethereum', eth: 'ethereum',
@@ -353,34 +356,30 @@
         };
 
         async function tryMarketQuote(qNorm) {
-            // Cripto via CoinGecko (sem chave)
-            const cryptoId = CRYPTO_IDS[qNorm] || (qNorm.includes('bitcoin') || qNorm === 'btc' ? 'bitcoin' : null);
+            const cryptoId = CRYPTO_IDS[qNorm] || (qNorm.includes('bitcoin') ? 'bitcoin' : null);
             if (cryptoId) {
                 try {
                     const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + cryptoId + '&vs_currencies=usd,brl&include_24hr_change=true');
                     const data = await res.json();
                     const d = data[cryptoId];
                     if (d) {
-                        const change = d.usd_24h_change || 0;
                         renderQuoteBox({
                             title: cryptoId.charAt(0).toUpperCase() + cryptoId.slice(1) + ' (' + qNorm.toUpperCase() + ')',
                             value: 'US$ ' + d.usd.toLocaleString('pt-BR', {maximumFractionDigits: 2}) + '  ·  R$ ' + d.brl.toLocaleString('pt-BR', {maximumFractionDigits: 2}),
-                            change: change,
+                            change: d.usd_24h_change || 0,
                             sourceUrl: 'https://www.coingecko.com/pt/moedas/' + cryptoId,
                             sourceName: 'CoinGecko'
                         });
                         return true;
                     }
-                } catch (err) { /* segue para outras fontes */ }
+                } catch (err) { /* segue */ }
             }
-            // Câmbio (dólar, euro) via AwesomeAPI (sem chave)
             const fiatPair = FIAT_KEYWORDS[qNorm];
             if (fiatPair) {
                 try {
                     const res = await fetch('https://economia.awesomeapi.com.br/last/' + fiatPair);
                     const data = await res.json();
-                    const key = fiatPair.replace('-', '');
-                    const d = data[key];
+                    const d = data[fiatPair.replace('-', '')];
                     if (d) {
                         renderQuoteBox({
                             title: (fiatPair === 'USD-BRL' ? 'Dólar americano' : 'Euro') + ' → Real',
@@ -391,7 +390,7 @@
                         });
                         return true;
                     }
-                } catch (err) { /* segue para outras fontes */ }
+                } catch (err) { /* segue */ }
             }
             return false;
         }
@@ -405,145 +404,326 @@
                 '<div class="quote-title">' + escapeHtml(q.title) + '</div>' +
                 '<div class="quote-value">' + q.value + '</div>' +
                 '<div class="quote-change ' + changeClass + '">' + changeSign + q.change.toFixed(2) + '% (24h)</div>' +
-                '<div class="quote-source">Fonte: <a href="' + q.sourceUrl + '" target="_blank">' + q.sourceName + '</a></div>';
+                '<div class="quote-source">Fonte: <a href="' + q.sourceUrl + '" target="_blank" rel="noopener">' + q.sourceName + '</a></div>';
             resultsContainer.appendChild(box);
         }
 
+        // =====================================================================
+        // Busca ampla (Tavily) — site oficial, GitHub, Reddit, explorer, docs...
+        // restrita à lista de domínios de mercado/cripto em TAVILY_INCLUDE_DOMAINS.
+        // =====================================================================
+        async function fetchWebResults(query) {
+            if (!TAVILY_API_KEY) return [];
+            try {
+                const res = await fetch('https://api.tavily.com/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_key: TAVILY_API_KEY,
+                        query: query,
+                        include_domains: TAVILY_INCLUDE_DOMAINS,
+                        max_results: 8
+                    })
+                });
+                const data = await res.json();
+                return data.results || [];
+            } catch (err) {
+                return [];
+            }
+        }
+
+        function renderWebResult(r) {
+            const link = document.createElement('a');
+            link.className = 'result-link';
+            link.href = r.url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            const domain = (() => { try { return new URL(r.url).hostname; } catch (e) { return r.url; } })();
+            link.innerHTML =
+                '<span class="result-url">' + escapeHtml(domain) + '</span>' +
+                '<span class="result-name">' + escapeHtml(r.title || domain) + '</span>' +
+                '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + (r.content && r.content.length > 160 ? '…' : '') + '</div>';
+            resultsContainer.appendChild(link);
+        }
+
+        // =====================================================================
+        // Busca de token (DexScreener) — nome, símbolo ou endereço de contrato exato
+        // =====================================================================
+        async function fetchTokenResults(query) {
+            try {
+                const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(query));
+                const data = await res.json();
+                const pairs = data.pairs || [];
+                const qLower = query.toLowerCase();
+                const matches = pairs.filter(p =>
+                    p.baseToken && (
+                        p.baseToken.name.toLowerCase() === qLower ||
+                        p.baseToken.symbol.toLowerCase() === qLower ||
+                        p.baseToken.address.toLowerCase() === qLower
+                    )
+                );
+                const seen = new Set();
+                return matches.filter(p => {
+                    const key = p.chainId + p.baseToken.address;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+            } catch (err) {
+                return [];
+            }
+        }
+
+        function renderTokenResult(p) {
+            const isNew = p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 24 * 60 * 60 * 1000;
+            const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
+            const liquidity = p.liquidity && p.liquidity.usd ? 'Liquidez: $' + Math.round(p.liquidity.usd).toLocaleString('pt-BR') : '';
+            const officialSite = (p.info && p.info.websites && p.info.websites[0]) ? p.info.websites[0].url : null;
+            const link = document.createElement('a');
+            link.className = 'result-link';
+            link.href = p.url || officialSite || '#';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.innerHTML =
+                '<span class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</span>' +
+                '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</span>' +
+                '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>';
+            resultsContainer.appendChild(link);
+            if (officialSite) {
+                const siteLink = document.createElement('a');
+                siteLink.className = 'result-link';
+                siteLink.href = officialSite;
+                siteLink.target = '_blank';
+                siteLink.rel = 'noopener noreferrer';
+                const domain = (() => { try { return new URL(officialSite).hostname; } catch (e) { return officialSite; } })();
+                siteLink.innerHTML =
+                    '<span class="result-url">' + escapeHtml(domain) + '</span>' +
+                    '<span class="result-name">Site oficial — ' + escapeHtml(p.baseToken.name) + '</span>';
+                resultsContainer.appendChild(siteLink);
+            }
+        }
+
+        // =====================================================================
+        // Orquestra a busca: cotação + resultados de token + resultados web (Tavily)
+        // =====================================================================
         async function runSearch(query) {
-            resultsContainer.innerHTML = "";
-            if (!query || !query.trim()) return;
+            if (!query || !query.trim()) {
+                resultsContainer.innerHTML = "";
+                homeWidgets.classList.remove('hidden');
+                return;
+            }
             const q = query.trim();
             const qNorm = normalize(q);
+            homeWidgets.classList.add('hidden');
             resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
 
             let gotQuote = false;
+            try { gotQuote = await tryMarketQuote(qNorm); } catch (err) { /* segue */ }
+
+            const [tokenResults, webResults] = await Promise.all([
+                fetchTokenResults(q),
+                fetchWebResults(q)
+            ]);
+
             resultsContainer.innerHTML = "";
-            try {
-                gotQuote = await tryMarketQuote(qNorm);
-            } catch (err) { /* segue para busca de tokens */ }
+            if (gotQuote) { try { await tryMarketQuote(qNorm); } catch (err) {} }
 
-            let pairs = [];
-            try {
-                const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(q));
-                const data = await res.json();
-                pairs = data.pairs || [];
-            } catch (err) {
-                if (!gotQuote) resultsContainer.innerHTML = '<div class="no-results">Erro ao buscar. Tente novamente.</div>';
+            if (!gotQuote && tokenResults.length === 0 && webResults.length === 0) {
+                resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
                 return;
             }
 
-            // Foco: só bate exato no nome, símbolo ou endereço do contrato — nada "parecido".
-            const qLower = q.toLowerCase();
-            const matches = pairs.filter(p =>
-                p.baseToken && (
-                    p.baseToken.name.toLowerCase() === qLower ||
-                    p.baseToken.symbol.toLowerCase() === qLower ||
-                    p.baseToken.address.toLowerCase() === qLower
-                )
-            );
+            tokenResults.forEach(renderTokenResult);
+            webResults.forEach(renderWebResult);
 
-            // Remove duplicados do mesmo token na mesma rede
-            const seen = new Set();
-            const unique = matches.filter(p => {
-                const key = p.chainId + p.baseToken.address;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            });
-
-            if (unique.length === 0) {
-                if (!gotQuote) {
-                    resultsContainer.innerHTML += '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
-                }
-                return;
+            if (!TAVILY_API_KEY && tokenResults.length === 0) {
+                const note = document.createElement('div');
+                note.className = 'no-results';
+                note.textContent = 'Busca ampla (site oficial, GitHub, Reddit...) ainda não configurada.';
+                resultsContainer.appendChild(note);
             }
-
-            unique.forEach(p => {
-                const isNew = p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 24 * 60 * 60 * 1000;
-                const icon = (p.info && p.info.imageUrl) ? p.info.imageUrl : "rer_logo.png";
-                const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
-                const liquidity = p.liquidity && p.liquidity.usd ? 'Liquidez: $' + Math.round(p.liquidity.usd).toLocaleString('pt-BR') : '';
-                const link = document.createElement('a');
-                link.className = 'result-link';
-                link.href = p.url || '#';
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.innerHTML =
-                    '<img src="' + icon + '" class="result-icon" alt="" onerror="this.src=\'rer_logo.png\'">' +
-                    '<div class="result-info">' +
-                        '<div class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</div>' +
-                        '<div class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</div>' +
-                        '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>' +
-                    '</div>';
-                resultsContainer.appendChild(link);
-            });
-        }
-
-        // ---- Pagamento Pix (Fase 4) ----
-        // BACKEND_URL: preencher quando o servidor (com a chave Efí) estiver no ar.
-        // Ele deve expor:
-        //   POST {BACKEND_URL}/pix/criar   -> { valorUSD, tokenNome } => { qrCodeBase64, copiaECola, cobrancaId }
-        //   GET  {BACKEND_URL}/pix/status/{cobrancaId} -> { pago: true|false }
-        const BACKEND_URL = "";
-
-        let currentPair = null;
-        let statusPollId = null;
-        const paymentOverlay = document.getElementById('paymentOverlay');
-        const paymentStatus = document.getElementById('paymentStatus');
-        const pixArea = document.getElementById('pixArea');
-
-        function openPaymentModal(pair) {
-            currentPair = pair;
-            document.getElementById('paymentTokenName').textContent = "Acesso: " + pair.baseToken.name;
-            pixArea.innerHTML = '<button class="payment-pix-btn" onclick="initiatePixPayment()">Pagar com Pix — US$1</button>';
-            paymentStatus.textContent = "";
-            paymentOverlay.classList.add('active');
-        }
-
-        function closePaymentModal() {
-            paymentOverlay.classList.remove('active');
-            if (statusPollId) clearInterval(statusPollId);
-        }
-
-        async function initiatePixPayment() {
-            if (!BACKEND_URL) {
-                paymentStatus.textContent = "Pagamento indisponível no momento. Configuração pendente.";
-                return;
-            }
-            paymentStatus.textContent = "Gerando pagamento...";
-            try {
-                const res = await fetch(BACKEND_URL + "/pix/criar", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ valorUSD: 1, tokenNome: currentPair.baseToken.name })
-                });
-                const data = await res.json();
-                paymentStatus.textContent = "Abrindo pagamento...";
-                pollPaymentStatus(data.cobrancaId);
-                window.open(data.checkoutUrl, "_blank");
-            } catch (err) {
-                paymentStatus.textContent = "Erro ao gerar pagamento. Tente novamente.";
-            }
-        }
-
-        function pollPaymentStatus(cobrancaId) {
-            statusPollId = setInterval(async () => {
-                try {
-                    const res = await fetch(BACKEND_URL + "/pix/status/" + cobrancaId);
-                    const data = await res.json();
-                    if (data.pago) {
-                        clearInterval(statusPollId);
-                        paymentStatus.textContent = "Pagamento confirmado! Acesso liberado.";
-                        setTimeout(closePaymentModal, 2000);
-                    }
-                } catch (err) { /* mantém tentando */ }
-            }, 4000);
         }
 
         document.getElementById('searchInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') runSearch(e.target.value);
         });
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            if (!e.target.value.trim()) { resultsContainer.innerHTML = ""; homeWidgets.classList.remove('hidden'); }
+        });
 
+        // =====================================================================
+        // Autocomplete simples (datalist) com ativos e moedas conhecidos
+        // =====================================================================
+        const KNOWN_ASSETS = [
+            "Bitcoin", "BTC", "Ethereum", "ETH", "Solana", "SOL", "RERC", "ReR Coin",
+            "Tether", "USDT", "BNB", "XRP", "Cardano", "ADA", "Dogecoin", "DOGE", "Tron", "TRX",
+            "Dólar", "Euro", "Real", "Libra Esterlina", "Iene", "Peso Argentino"
+        ];
+        const datalist = document.getElementById('suggestionList');
+        datalist.innerHTML = KNOWN_ASSETS.map(a => '<option value="' + escapeHtml(a) + '">').join('');
+
+        // =====================================================================
+        // Widgets: 4 cards de cripto (Bitcoin, RERC, Solana, Ethereum) com sparkline
+        // =====================================================================
+        function renderSparkline(svgEl, prices) {
+            if (!prices || prices.length < 2) return;
+            const w = 100, h = 32;
+            const min = Math.min(...prices), max = Math.max(...prices);
+            const range = (max - min) || 1;
+            const step = w / (prices.length - 1);
+            const points = prices.map((p, i) => (i * step).toFixed(2) + ',' + (h - ((p - min) / range) * h).toFixed(2)).join(' ');
+            const up = prices[prices.length - 1] >= prices[0];
+            svgEl.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+            svgEl.setAttribute('preserveAspectRatio', 'none');
+            svgEl.innerHTML = '<polyline points="' + points + '" fill="none" stroke="' + (up ? '#4caf50' : '#e05252') + '" stroke-width="1.5"/>';
+        }
+
+        function fillCoinCard(el, { price, changePct, sparkPrices, currency }) {
+            el.querySelector('.coin-price').textContent = currency + parseFloat(price).toLocaleString('pt-BR', { maximumFractionDigits: price < 1 ? 6 : 2 });
+            const changeEl = el.querySelector('.coin-change');
+            const sign = changePct >= 0 ? '+' : '';
+            changeEl.textContent = sign + changePct.toFixed(2) + '%';
+            changeEl.className = 'coin-change ' + (changePct >= 0 ? 'up' : 'down');
+            renderSparkline(el.querySelector('.coin-spark'), sparkPrices);
+        }
+
+        async function loadCoinGeckoCard(id, ticker) {
+            const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
+            if (!el) return;
+            try {
+                const [priceRes, chartRes] = await Promise.all([
+                    fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + id + '&vs_currencies=usd&include_24hr_change=true'),
+                    fetch('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=1')
+                ]);
+                const priceData = await priceRes.json();
+                const chartData = await chartRes.json();
+                const prices = (chartData.prices || []).map(p => p[1]);
+                fillCoinCard(el, {
+                    price: priceData[id].usd,
+                    changePct: priceData[id].usd_24h_change || 0,
+                    sparkPrices: prices,
+                    currency: 'US$ '
+                });
+            } catch (err) {
+                el.querySelector('.coin-price').textContent = 'indisponível';
+            }
+        }
+
+        async function loadRercCard() {
+            const el = document.querySelector('.coin-card[data-coin="rerc"]');
+            if (!el) return;
+            try {
+                const res = await fetch('https://api.dexscreener.com/latest/dex/search?q=RERC');
+                const data = await res.json();
+                const pairs = (data.pairs || []).filter(p => p.baseToken && p.baseToken.symbol.toUpperCase() === 'RERC' && p.chainId === 'polygon');
+                if (!pairs.length) throw new Error('sem par encontrado');
+                // pega o par de maior liquidez
+                pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                const pair = pairs[0];
+                let sparkPrices = [];
+                try {
+                    const ohlcvRes = await fetch('https://api.geckoterminal.com/api/v2/networks/polygon_pos/pools/' + pair.pairAddress + '/ohlcv/hour?limit=24');
+                    const ohlcvData = await ohlcvRes.json();
+                    const list = ohlcvData.data?.attributes?.ohlcv_list || [];
+                    sparkPrices = list.map(row => row[4]).reverse(); // close price, ordem cronológica
+                } catch (err) { /* sem sparkline, segue só com o preço */ }
+                fillCoinCard(el, {
+                    price: parseFloat(pair.priceUsd),
+                    changePct: pair.priceChange?.h24 || 0,
+                    sparkPrices: sparkPrices,
+                    currency: '$'
+                });
+            } catch (err) {
+                el.querySelector('.coin-price').textContent = 'indisponível';
+            }
+        }
+
+        function loadHomeCards() {
+            loadCoinGeckoCard('bitcoin', 'BTC');
+            loadCoinGeckoCard('solana', 'SOL');
+            loadCoinGeckoCard('ethereum', 'ETH');
+            loadRercCard();
+        }
+        loadHomeCards();
+
+        // =====================================================================
+        // Conversor — moedas do mundo (Frankfurter, sem chave) + principais coins/tokens + RERC
+        // =====================================================================
+        const WORLD_CURRENCIES = {
+            USD: 'Dólar americano', EUR: 'Euro', BRL: 'Real brasileiro', GBP: 'Libra esterlina',
+            JPY: 'Iene japonês', CHF: 'Franco suíço', CAD: 'Dólar canadense', AUD: 'Dólar australiano',
+            CNY: 'Yuan chinês', INR: 'Rupia indiana', MXN: 'Peso mexicano', ZAR: 'Rand sul-africano',
+            SEK: 'Coroa sueca', NOK: 'Coroa norueguesa', DKK: 'Coroa dinamarquesa', PLN: 'Zloty polonês',
+            SGD: 'Dólar de Singapura', HKD: 'Dólar de Hong Kong', KRW: 'Won sul-coreano', TRY: 'Lira turca',
+            NZD: 'Dólar neozelandês', CZK: 'Coroa tcheca', HUF: 'Florim húngaro', ILS: 'Shekel israelense',
+            THB: 'Baht tailandês', IDR: 'Rupia indonésia', PHP: 'Peso filipino', RON: 'Leu romeno'
+        };
+        const CRYPTO_CONVERT = {
+            BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', USDT: 'tether', BNB: 'binancecoin',
+            XRP: 'ripple', ADA: 'cardano', DOGE: 'dogecoin', TRX: 'tron'
+        };
+
+        const convFrom = document.getElementById('convFrom');
+        const convTo = document.getElementById('convTo');
+        const convAmountFrom = document.getElementById('convAmountFrom');
+        const convAmountTo = document.getElementById('convAmountTo');
+        const convNote = document.getElementById('convNote');
+
+        function buildConverterOptions() {
+            let html = '<optgroup label="Moedas">';
+            Object.keys(WORLD_CURRENCIES).forEach(code => { html += '<option value="' + code + '">' + code + '</option>'; });
+            html += '</optgroup><optgroup label="Cripto">';
+            Object.keys(CRYPTO_CONVERT).forEach(code => { html += '<option value="' + code + '">' + code + '</option>'; });
+            html += '<option value="RERC">RERC</option></optgroup>';
+            convFrom.innerHTML = html;
+            convTo.innerHTML = html;
+            convFrom.value = 'USD';
+            convTo.value = 'BRL';
+        }
+        buildConverterOptions();
+
+        async function getUsdValueOf(code) {
+            if (code === 'RERC') {
+                const res = await fetch('https://api.dexscreener.com/latest/dex/search?q=RERC');
+                const data = await res.json();
+                const pairs = (data.pairs || []).filter(p => p.baseToken && p.baseToken.symbol.toUpperCase() === 'RERC' && p.chainId === 'polygon');
+                if (!pairs.length) throw new Error('RERC indisponível');
+                pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                return parseFloat(pairs[0].priceUsd);
+            }
+            if (CRYPTO_CONVERT[code]) {
+                const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + CRYPTO_CONVERT[code] + '&vs_currencies=usd');
+                const data = await res.json();
+                return data[CRYPTO_CONVERT[code]].usd;
+            }
+            if (code === 'USD') return 1;
+            // moeda fiat: quantos USD vale 1 unidade dessa moeda
+            const res = await fetch('https://api.frankfurter.dev/v1/latest?from=' + code + '&to=USD');
+            const data = await res.json();
+            return data.rates.USD;
+        }
+
+        async function runConversion() {
+            const from = convFrom.value, to = convTo.value;
+            const amount = parseFloat(convAmountFrom.value) || 0;
+            convNote.textContent = 'Calculando...';
+            try {
+                const [usdFrom, usdTo] = await Promise.all([getUsdValueOf(from), getUsdValueOf(to)]);
+                const result = amount * usdFrom / usdTo;
+                convAmountTo.value = result.toLocaleString('pt-BR', { maximumFractionDigits: result < 1 ? 8 : 2 });
+                convNote.textContent = 'Cotações de mercado, apenas referência.';
+            } catch (err) {
+                convNote.textContent = 'Não foi possível converter agora.';
+            }
+        }
+        convFrom.addEventListener('change', runConversion);
+        convTo.addEventListener('change', runConversion);
+        convAmountFrom.addEventListener('input', runConversion);
+        runConversion();
+
+        // =====================================================================
+        // Voz
+        // =====================================================================
         function startVoice() {
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRec) {
@@ -566,7 +746,9 @@
             recognition.onend = () => btn.classList.remove('listening');
         }
 
-        // ---- Scanner: câmera real, leitura de QR Code e captura de texto ----
+        // =====================================================================
+        // Scanner: câmera real, leitura de QR Code e captura de texto
+        // =====================================================================
         let scannerStream = null;
         let scanLoopId = null;
         const video = document.getElementById('scannerVideo');
@@ -584,9 +766,7 @@
                     video.play();
                     scanLoopId = requestAnimationFrame(scanQRLoop);
                 })
-                .catch(() => {
-                    status.textContent = "Não foi possível acessar a câmera.";
-                });
+                .catch(() => { status.textContent = "Não foi possível acessar a câmera."; });
         }
 
         function scanQRLoop() {
