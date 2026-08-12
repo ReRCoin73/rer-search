@@ -153,6 +153,18 @@
             margin-bottom: 10px;
         }
         .converter-row:last-child { margin-bottom: 0; }
+        .swap-btn {
+            display: block;
+            margin: -2px auto 6px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--accent-color);
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .swap-btn:hover { background: rgba(212,175,55,0.12); }
         .converter-amount {
             flex: 1;
             background: transparent;
@@ -307,6 +319,7 @@
                 <input type="number" id="convAmountFrom" class="converter-amount" value="1">
                 <select id="convFrom" class="converter-select"></select>
             </div>
+            <button type="button" class="swap-btn" id="swapBtn" title="Trocar de lugar">⇅</button>
             <div class="converter-row">
                 <input type="number" id="convAmountTo" class="converter-amount" readonly>
                 <select id="convTo" class="converter-select"></select>
@@ -336,26 +349,18 @@
         // =====================================================================
         // Serper.dev (busca ampla no Google, filtrada em sites de mercado/cripto): serper.dev -> conta grátis -> API key.
         const SERPER_API_KEY = "32ae43fa233c01d6867bd876d2cb83d9661397d4"; // <-- cole aqui a chave da Serper.dev
-        // Domínios liberados pra busca ampla: sites oficiais de projetos, exploradores de blockchain,
-        // GitHub, CoinGecko/CoinMarketCap, corretoras, e imprensa financeira séria.
+        // Domínios liberados pra busca ampla — reduzido de propósito: cada fonte genérica
+        // (github, reddit, blog de corretora) vinha trazendo conteúdo aleatório sem relação
+        // real com o termo buscado (blog da Binance em vietnamita, post do Reddit sem nexo).
+        // Fica só o que é inerentemente sobre mercado/cripto.
         const SERPER_INCLUDE_DOMAINS = [
-            "github.com", "reddit.com", "polygonscan.com", "etherscan.io", "bscscan.com",
-            "solscan.io", "tronscan.org", "coingecko.com", "coinmarketcap.com",
-            "dexscreener.com", "geckoterminal.com", "binance.com", "coinbase.com",
-            "kraken.com", "okx.com", "bybit.com", "uniswap.org", "metamask.io",
-            "g1.globo.com", "valor.globo.com", "infomoney.com.br", "moneytimes.com.br",
-            "exame.com", "cointelegraph.com", "investing.com", "reuters.com", "bloomberg.com"
-        ];
-
-        // Domínios que são sempre sobre mercado/cripto por natureza — não precisam do filtro
-        // de palavra-chave abaixo. Domínios "genéricos" (github, reddit, imprensa) sim precisam,
-        // porque podem ter conteúdo de qualquer assunto com o mesmo nome (ex. empresa homônima).
-        const ALWAYS_RELEVANT_DOMAINS = [
             "polygonscan.com", "etherscan.io", "bscscan.com", "solscan.io", "tronscan.org",
             "coingecko.com", "coinmarketcap.com", "dexscreener.com", "geckoterminal.com",
-            "binance.com", "coinbase.com", "kraken.com", "okx.com", "bybit.com",
-            "uniswap.org", "metamask.io"
+            "cointelegraph.com", "investing.com"
         ];
+
+        // Palavras que precisam aparecer no conteúdo pra considerar o resultado
+        // realmente sobre mercado/cripto (evita homônimo tipo empresa Bloomberg "RERC").
         const CONTEXT_KEYWORDS = [
             "crypto", "criptomoeda", "token", "coin", "blockchain", "cripto",
             "polygon", "ethereum", "solana", "wallet", "carteira", "dex", "exchange",
@@ -443,14 +448,7 @@
                 const qNorm = normalize(query);
                 return results.filter(r => {
                     const haystack = normalize((r.title || '') + ' ' + (r.content || ''));
-                    // Precisa ter o termo pesquisado de verdade
                     if (!haystack.includes(qNorm)) return false;
-                    // Domínio inerentemente cripto/mercado passa direto
-                    let domain = '';
-                    try { domain = new URL(r.url).hostname.replace('www.', ''); } catch (e) {}
-                    if (ALWAYS_RELEVANT_DOMAINS.some(d => domain.endsWith(d))) return true;
-                    // Domínio genérico (github, reddit, imprensa) só passa se o conteúdo
-                    // também tiver contexto de mercado/cripto — evita empresa homônima sem nada a ver
                     return CONTEXT_KEYWORDS.some(k => haystack.includes(k));
                 });
             } catch (err) {
@@ -608,13 +606,21 @@
                 fetchBinanceTokens(qLower, query)
             ]);
             const all = [].concat(dex, gt, cg, bn);
-            const seen = new Set();
-            const unique = all.filter(p => {
-                const key = p.source + '|' + p.chainId + '|' + (p.baseToken.address || p.baseToken.symbol);
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
+            // Agrupa pelo MESMO token (endereço + rede), não pela fonte — evita mostrar o
+            // mesmo token duas vezes quando duas fontes indexam o mesmo par, e fica com a
+            // leitura mais confiável (maior liquidez) entre elas.
+            const byToken = new Map();
+            all.forEach(p => {
+                const key = normalize(p.chainId.split(' ')[0]) + '|' + (p.baseToken.address || p.baseToken.symbol).toLowerCase();
+                const current = byToken.get(key);
+                if (!current || (p.liquidity?.usd || 0) > (current.liquidity?.usd || 0)) {
+                    byToken.set(key, p);
+                }
             });
+            let unique = Array.from(byToken.values());
+            // Descarta leitura de preço quebrado/zerado (bug comum de fonte) se houver outra opção
+            const withPrice = unique.filter(p => parseFloat(p.priceUsd) > 0);
+            if (withPrice.length) unique = withPrice;
             // Ordena por liquidez/volume (mais relevante primeiro).
             unique.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
             // O filtro de liquidez mínima só entra quando há MUITOS resultados (ruído real,
@@ -916,11 +922,27 @@
                 return data[CRYPTO_CONVERT[code]].usd;
             }
             if (code === 'USD') return 1;
-            // moeda fiat: quantos USD vale 1 unidade dessa moeda (endpoint v2, atual)
-            const res = await fetch('https://api.frankfurter.dev/v2/rate/' + code + '/USD');
-            const data = await res.json();
-            return data.rate;
+            // moeda fiat: quantos USD vale 1 unidade dessa moeda
+            try {
+                const res = await fetch('https://api.frankfurter.dev/v2/rate/' + code + '/USD');
+                if (!res.ok) throw new Error('v2 falhou');
+                const data = await res.json();
+                if (typeof data.rate !== 'number') throw new Error('v2 sem rate');
+                return data.rate;
+            } catch (err) {
+                // Fallback: endpoint v1 (mais antigo, mas ainda no ar)
+                const res = await fetch('https://api.frankfurter.dev/v1/latest?from=' + code + '&to=USD');
+                const data = await res.json();
+                return data.rates.USD;
+            }
         }
+
+        document.getElementById('swapBtn').addEventListener('click', () => {
+            const tmp = convFrom.value;
+            convFrom.value = convTo.value;
+            convTo.value = tmp;
+            runConversion();
+        });
 
         async function runConversion() {
             const from = convFrom.value, to = convTo.value;
@@ -1009,25 +1031,10 @@
 
         function captureText() {
             if (!video.videoWidth) return;
-            status.textContent = "Lendo texto...";
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(blob => {
-                Tesseract.recognize(blob, 'por')
-                    .then(({ data: { text } }) => {
-                        const clean = text.trim();
-                        if (clean) {
-                            document.getElementById('searchInput').value = clean;
-                            status.textContent = "Texto capturado.";
-                            closeScanner();
-                            runSearch(clean);
-                        } else {
-                            status.textContent = "Nenhum texto reconhecido, tente novamente.";
-                        }
-                    })
-                    .catch(() => { status.textContent = "Erro ao ler o texto."; });
-            });
+            runOcr(canvas);
         }
 
         function closeScanner() {
@@ -1039,45 +1046,89 @@
             }
         }
 
+        // Reduz a imagem antes do OCR — fotos de celular em resolução total deixam o
+        // reconhecimento de texto extremamente lento; ~1000px de largura já é suficiente.
+        function downscaleForOcr(sourceCanvas, maxWidth) {
+            maxWidth = maxWidth || 1000;
+            if (sourceCanvas.width <= maxWidth) return sourceCanvas;
+            const scale = maxWidth / sourceCanvas.width;
+            const small = document.createElement('canvas');
+            small.width = maxWidth;
+            small.height = Math.round(sourceCanvas.height * scale);
+            small.getContext('2d').drawImage(sourceCanvas, 0, 0, small.width, small.height);
+            return small;
+        }
+
+        function showRecognizedText(text) {
+            closeScanner();
+            document.getElementById('searchInput').value = text;
+            const box = document.createElement('div');
+            box.className = 'no-results';
+            box.style.textAlign = 'left';
+            box.innerHTML =
+                '<div style="margin-bottom:10px;">Texto reconhecido: "' + escapeHtml(text) + '"</div>' +
+                '<button class="scanner-btn" id="copyRecognizedBtn">Copiar texto</button> ' +
+                '<button class="scanner-btn" id="searchRecognizedBtn">Buscar</button>';
+            resultsContainer.innerHTML = "";
+            resultsContainer.appendChild(box);
+            document.getElementById('copyRecognizedBtn').onclick = () => {
+                navigator.clipboard.writeText(text).then(() => {
+                    document.getElementById('copyRecognizedBtn').textContent = 'Copiado!';
+                });
+            };
+            document.getElementById('searchRecognizedBtn').onclick = () => runSearch(text);
+        }
+
+        function runOcr(sourceCanvas) {
+            status.textContent = "Lendo texto... 0%";
+            const small = downscaleForOcr(sourceCanvas);
+            small.toBlob(blob => {
+                Tesseract.recognize(blob, 'por', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            status.textContent = "Lendo texto... " + Math.round(m.progress * 100) + "%";
+                        }
+                    }
+                })
+                    .then(({ data: { text } }) => {
+                        const clean = text.trim();
+                        if (clean) {
+                            showRecognizedText(clean);
+                        } else {
+                            status.textContent = "Nenhum QR Code ou texto reconhecido, tente novamente.";
+                        }
+                    })
+                    .catch(() => { status.textContent = "Erro ao ler o texto."; });
+            });
+        }
+
+        function tryQrThenOcr(sourceCanvas) {
+            const ctx = sourceCanvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code && code.data) {
+                status.textContent = "QR Code detectado: " + code.data;
+                closeScanner();
+                document.getElementById('searchInput').value = code.data;
+                runSearch(code.data);
+                return;
+            }
+            runOcr(sourceCanvas);
+        }
+
         // Escolher imagem da galeria (igual ao quadradinho do Google Lens) em vez de usar a câmera ao vivo
         document.getElementById('galleryInput').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            status.textContent = "Lendo imagem...";
+            status.textContent = "Carregando imagem...";
             const img = new Image();
             const reader = new FileReader();
             reader.onload = (ev) => { img.src = ev.target.result; };
             img.onload = () => {
                 canvas.width = img.width;
                 canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                // 1) tenta QR Code primeiro
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-                if (code && code.data) {
-                    status.textContent = "QR Code detectado: " + code.data;
-                    document.getElementById('searchInput').value = code.data;
-                    closeScanner();
-                    runSearch(code.data);
-                    return;
-                }
-                // 2) senão, tenta ler texto (OCR)
-                canvas.toBlob(blob => {
-                    Tesseract.recognize(blob, 'por')
-                        .then(({ data: { text } }) => {
-                            const clean = text.trim();
-                            if (clean) {
-                                document.getElementById('searchInput').value = clean;
-                                status.textContent = "Texto capturado da imagem.";
-                                closeScanner();
-                                runSearch(clean);
-                            } else {
-                                status.textContent = "Nenhum QR Code ou texto reconhecido nessa imagem.";
-                            }
-                        })
-                        .catch(() => { status.textContent = "Erro ao ler a imagem."; });
-                });
+                canvas.getContext('2d').drawImage(img, 0, 0);
+                tryQrThenOcr(canvas);
             };
             reader.readAsDataURL(file);
             e.target.value = ''; // permite escolher a mesma imagem de novo depois
