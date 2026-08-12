@@ -99,6 +99,7 @@
         .icon-btn.listening svg { fill: var(--accent-color); }
         .icon-btn svg { width: 22px; height: 22px; fill: var(--text-color); }
 
+        /* ---- Widgets da tela inicial (somem quando há resultado de busca) ---- */
         .home-widgets {
             width: 100%;
             max-width: 600px;
@@ -133,6 +134,7 @@
         .coin-change.down { color: #e05252; }
         .coin-spark { width: 100%; height: 30px; margin-top: 8px; display: block; opacity: 0.9; }
 
+        /* ---- Conversor ---- */
         .converter-box {
             margin-top: 22px;
             border: 1px solid var(--border-color);
@@ -173,6 +175,7 @@
         .converter-select option { color: #000; }
         .converter-note { font-size: 0.75rem; opacity: 0.55; margin-top: 8px; text-align: center; }
 
+        /* ---- Resultados da busca ---- */
         .results-container {
             width: 100%;
             max-width: 600px;
@@ -205,6 +208,7 @@
         .result-desc { font-size: 0.9rem; opacity: 0.85; margin-top: 4px; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
 
+        /* Dropdown de autocomplete (estilo Google) */
         .search-wrap { position: relative; width: 100%; max-width: 600px; }
         @media (min-width: 900px) { .search-wrap { max-width: 720px; } }
         @media (max-width: 480px) { .search-wrap { max-width: 92vw; } }
@@ -227,6 +231,7 @@
         }
         .autocomplete-item:hover, .autocomplete-item.highlighted { background: rgba(212,175,55,0.12); }
 
+        /* Modal do scanner */
         .scanner-overlay {
             display: none;
             position: fixed;
@@ -287,6 +292,7 @@
         <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
     </div>
 
+    <!-- Widgets da tela inicial: 4 cards + conversor. Somem quando há busca. -->
     <div class="home-widgets" id="homeWidgets">
         <div class="coin-row" id="coinRow">
             <div class="coin-card" data-coin="bitcoin"><div class="coin-ticker">BTC</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
@@ -311,6 +317,7 @@
 
     <div class="results-container" id="resultsContainer"></div>
 
+    <!-- Modal do scanner (QR code + texto), estilo Google Lens -->
     <div class="scanner-overlay" id="scannerOverlay">
         <video id="scannerVideo" class="scanner-video" autoplay playsinline muted></video>
         <canvas id="scannerCanvas" style="display:none;"></canvas>
@@ -322,7 +329,23 @@
     </div>
 
     <script>
-        const SERPER_API_KEY = "32ae43fa233c01d6867bd876d2cb83d9661397d4";
+        // =====================================================================
+        // CONFIGURAÇÃO — preencher quando tiver as chaves.
+        // =====================================================================
+        // Serper.dev (busca ampla no Google, filtrada em sites de mercado/cripto): serper.dev -> conta grátis -> API key.
+        const SERPER_API_KEY = "32ae43fa233c01d6867bd876d2cb83d9661397d4"; // <-- cole aqui a chave da Serper.dev
+        // Domínios liberados pra busca ampla: sites oficiais de projetos, exploradores de blockchain,
+        // GitHub, CoinGecko/CoinMarketCap, e imprensa financeira séria. Ajuste essa lista à vontade.
+        // (removidos os coringas "docs.*" e "*.gitbook.io": o operador site: do Google/Serper
+        // não interpreta glob — precisam ser domínios exatos se quiser reincluí-los)
+        const SERPER_INCLUDE_DOMAINS = [
+            "github.com", "reddit.com", "polygonscan.com", "etherscan.io", "bscscan.com",
+            "solscan.io", "tronscan.org", "coingecko.com", "coinmarketcap.com",
+            "dexscreener.com", "geckoterminal.com",
+            "g1.globo.com", "valor.globo.com", "infomoney.com.br", "moneytimes.com.br",
+            "exame.com", "cointelegraph.com", "investing.com", "reuters.com", "bloomberg.com"
+        ];
+
         const resultsContainer = document.getElementById('resultsContainer');
         const homeWidgets = document.getElementById('homeWidgets');
 
@@ -333,6 +356,12 @@
             return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
         }
 
+        // =====================================================================
+        // Busca ampla (Serper.dev / Google) — site oficial, GitHub, Reddit, explorer, docs, imprensa séria...
+        // restrita à lista de domínios de mercado/cripto em SERPER_INCLUDE_DOMAINS.
+        // Filtro de correspondência exata: só mantém resultado se o termo buscado
+        // aparece de verdade no título/conteúdo (evita trazer ativo diferente por engano).
+        // =====================================================================
         function favicon(url, size) {
             try {
                 const domain = new URL(url).hostname;
@@ -345,6 +374,8 @@
         async function fetchWebResults(query) {
             if (!SERPER_API_KEY) return [];
             try {
+                // Serper não tem "include_domains" nativo — simula com operador site: (OR) na própria query.
+                const siteFilter = '(' + SERPER_INCLUDE_DOMAINS.map(d => 'site:' + d).join(' OR ') + ')';
                 const res = await fetch('https://google.serper.dev/search', {
                     method: 'POST',
                     headers: {
@@ -352,16 +383,23 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        q: query,
-                        num: 6
+                        q: '"' + query + '" ' + siteFilter,
+                        num: 10
                     })
                 });
                 const data = await res.json();
-                return (data.organic || []).map(item => ({
+                // Normaliza o retorno orgânico do Google (Serper) pro formato usado no render: {url, title, content}
+                const results = (data.organic || []).map(item => ({
                     url: item.link,
                     title: item.title,
                     content: item.snippet || ''
                 }));
+                const qNorm = normalize(query);
+                // Mantém só resultado onde o termo pesquisado realmente aparece no título ou conteúdo
+                return results.filter(r => {
+                    const haystack = normalize((r.title || '') + ' ' + (r.content || ''));
+                    return haystack.includes(qNorm);
+                });
             } catch (err) {
                 return [];
             }
@@ -380,45 +418,204 @@
                 '<div class="result-info">' +
                     '<span class="result-name">' + escapeHtml(r.title || domain) + '</span>' +
                     '<div class="result-url">' + escapeHtml(domain) + '</div>' +
-                    '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + '</div>' +
+                    '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + (r.content && r.content.length > 160 ? '…' : '') + '</div>' +
                 '</div>';
             resultsContainer.appendChild(link);
         }
 
-        async function fetchTokenResults(query) {
+        // =====================================================================
+        // Busca de ativos/tokens — várias fontes em paralelo, cobrindo tanto pares
+        // on-chain (DEXs) quanto listagens centralizadas (CEX/agregadores):
+        //   • DexScreener    — pares on-chain, qualquer chain/DEX
+        //   • GeckoTerminal  — pares on-chain agregados de várias DEXs (inclui Uniswap)
+        //   • CoinGecko      — listagem centralizada dos principais coins/tokens
+        //   • Binance        — par de negociação na exchange, quando existir
+        // Cada fonte devolve resultados normalizados no mesmo formato que o render usa:
+        // { baseToken:{name,symbol,address}, chainId, priceUsd, liquidity:{usd}, url, info:{imageUrl}, source }
+        // Obs.: a Uniswap não tem API pública de busca sem chave própria; seus pares
+        // aparecem via GeckoTerminal, que agrega Uniswap V2/V3 entre outras DEXs.
+        // =====================================================================
+        async function fetchDexScreenerTokens(qLower, query) {
             try {
                 const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(query));
                 const data = await res.json();
-                const pairs = (data.pairs || []).slice(0, 3);
-                return pairs.map(p => ({
-                    baseToken: p.baseToken,
-                    chainId: p.chainId,
-                    priceUsd: p.priceUsd,
-                    liquidity: p.liquidity,
-                    url: p.url,
-                    info: p.info || {}
+                const pairs = data.pairs || [];
+                const matches = pairs.filter(p =>
+                    p.baseToken && (
+                        p.baseToken.name.toLowerCase() === qLower ||
+                        p.baseToken.symbol.toLowerCase() === qLower ||
+                        p.baseToken.address.toLowerCase() === qLower
+                    )
+                );
+                return matches.map(p => Object.assign({}, p, { source: 'dexscreener' }));
+            } catch (err) {
+                return [];
+            }
+        }
+
+        async function fetchGeckoTerminalPools(qLower, query) {
+            try {
+                const res = await fetch("https://api.geckoterminal.com/api/v2/search/pools?query=" + encodeURIComponent(query) + "&include=base_token,dex,network&page=1");
+                const data = await res.json();
+                const byId = {};
+                (data.included || []).forEach(item => { byId[item.type + ':' + item.id] = item; });
+                const matches = [];
+                (data.data || []).forEach(pool => {
+                    const rel = pool.relationships || {};
+                    const tokenRef = rel.base_token && rel.base_token.data;
+                    const dexRef = rel.dex && rel.dex.data;
+                    const netRef = rel.network && rel.network.data;
+                    const token = tokenRef ? byId['token:' + tokenRef.id] : null;
+                    if (!token || !token.attributes) return;
+                    const tName = (token.attributes.name || '').toLowerCase();
+                    const tSymbol = (token.attributes.symbol || '').toLowerCase();
+                    const tAddress = (token.attributes.address || '').toLowerCase();
+                    if (tName !== qLower && tSymbol !== qLower && tAddress !== qLower) return;
+                    const dex = dexRef ? byId['dex:' + dexRef.id] : null;
+                    const network = netRef ? netRef.id : '';
+                    const dexName = dex && dex.attributes ? dex.attributes.name : '';
+                    matches.push({
+                        baseToken: {
+                            name: token.attributes.name,
+                            symbol: token.attributes.symbol,
+                            address: token.attributes.address
+                        },
+                        chainId: network + (dexName ? ' (' + dexName + ')' : ''),
+                        priceUsd: pool.attributes.base_token_price_usd,
+                        liquidity: { usd: parseFloat(pool.attributes.reserve_in_usd) || 0 },
+                        url: 'https://www.geckoterminal.com/' + network + '/pools/' + pool.attributes.address,
+                        pairCreatedAt: pool.attributes.pool_created_at ? new Date(pool.attributes.pool_created_at).getTime() : null,
+                        info: (token.attributes.image_url && token.attributes.image_url.indexOf('missing') === -1) ? { imageUrl: token.attributes.image_url } : {},
+                        source: 'geckoterminal'
+                    });
+                });
+                return matches;
+            } catch (err) {
+                return [];
+            }
+        }
+
+        async function fetchCoinGeckoTokens(qLower, query) {
+            try {
+                const res = await fetch("https://api.coingecko.com/api/v3/search?query=" + encodeURIComponent(query));
+                const data = await res.json();
+                const coins = (data.coins || []).filter(c =>
+                    c.symbol.toLowerCase() === qLower || c.name.toLowerCase() === qLower
+                ).slice(0, 3);
+                if (!coins.length) return [];
+                const ids = coins.map(c => c.id).join(',');
+                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + ids + "&vs_currencies=usd&include_24hr_vol=true&include_market_cap=true");
+                const priceData = await priceRes.json();
+                return coins.filter(c => priceData[c.id]).map(c => ({
+                    baseToken: { name: c.name, symbol: c.symbol.toUpperCase(), address: c.id },
+                    chainId: 'CoinGecko',
+                    priceUsd: priceData[c.id].usd,
+                    liquidity: { usd: priceData[c.id].usd_24h_vol || priceData[c.id].usd_market_cap || 0 },
+                    url: 'https://www.coingecko.com/en/coins/' + c.id,
+                    info: c.large ? { imageUrl: c.large } : {},
+                    source: 'coingecko'
                 }));
             } catch (err) {
                 return [];
             }
         }
 
+        async function fetchBinanceTokens(qLower, query) {
+            // Só tenta símbolos plausíveis (sem espaço, curto) pra não gastar chamada à toa
+            if (!/^[a-z0-9]{2,10}$/i.test(query.trim())) return [];
+            const base = query.trim().toUpperCase();
+            const quoteAssets = ['USDT', 'USD', 'BUSD'];
+            for (const quote of quoteAssets) {
+                const symbol = base + quote;
+                try {
+                    const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=' + symbol);
+                    if (!res.ok) continue;
+                    const d = await res.json();
+                    if (!d || !d.lastPrice) continue;
+                    return [{
+                        baseToken: { name: base, symbol: base, address: symbol },
+                        chainId: 'Binance',
+                        priceUsd: parseFloat(d.lastPrice),
+                        liquidity: { usd: parseFloat(d.quoteVolume) || 0 },
+                        url: 'https://www.binance.com/en/trade/' + symbol,
+                        info: {},
+                        source: 'binance'
+                    }];
+                } catch (err) { /* tenta o próximo par de cotação */ }
+            }
+            return [];
+        }
+
+        async function fetchTokenResults(query) {
+            const qLower = query.toLowerCase().trim();
+            const [dex, gt, cg, bn] = await Promise.all([
+                fetchDexScreenerTokens(qLower, query),
+                fetchGeckoTerminalPools(qLower, query),
+                fetchCoinGeckoTokens(qLower, query),
+                fetchBinanceTokens(qLower, query)
+            ]);
+            const all = [].concat(dex, gt, cg, bn);
+            const seen = new Set();
+            const unique = all.filter(p => {
+                const key = p.source + '|' + p.chainId + '|' + (p.baseToken.address || p.baseToken.symbol);
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            // Ordena por liquidez/volume (mais relevante primeiro).
+            unique.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+            // O filtro de liquidez mínima só entra quando há MUITOS resultados (ruído real,
+            // tipo "bitcoin" trazendo dezenas de token-ponte). Com poucos resultados — caso
+            // de um token pequeno/novo tipo RERC — mostra tudo, mesmo com liquidez baixa.
+            if (unique.length > 3) {
+                const MIN_LIQUIDITY = 20000;
+                const filtered = unique.filter(p => (p.liquidity?.usd || 0) >= MIN_LIQUIDITY);
+                return (filtered.length ? filtered : unique).slice(0, 6);
+            }
+            return unique;
+        }
+
         function renderTokenResult(p) {
+            const officialSite = (p.info && p.info.websites && p.info.websites[0]) ? p.info.websites[0].url : null;
+            if (officialSite) {
+                const siteLink = document.createElement('a');
+                siteLink.className = 'result-link';
+                siteLink.href = officialSite;
+                siteLink.target = '_blank';
+                siteLink.rel = 'noopener noreferrer';
+                const domain = (() => { try { return new URL(officialSite).hostname; } catch (e) { return officialSite; } })();
+                const icon = favicon(officialSite);
+                siteLink.innerHTML =
+                    (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
+                    '<div class="result-info">' +
+                        '<span class="result-name">Site oficial — ' + escapeHtml(p.baseToken.name) + '</span>' +
+                        '<div class="result-url">' + escapeHtml(domain) + '</div>' +
+                    '</div>';
+                resultsContainer.appendChild(siteLink);
+            }
+
+            const isNew = p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 24 * 60 * 60 * 1000;
+            const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
+            const liquidity = p.liquidity && p.liquidity.usd ? 'Liquidez: $' + Math.round(p.liquidity.usd).toLocaleString('pt-BR') : '';
             const link = document.createElement('a');
             link.className = 'result-link';
-            link.href = p.url || '#';
+            link.href = p.url || officialSite || '#';
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
-            const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
+            const tokenIcon = (p.info && p.info.imageUrl) ? p.info.imageUrl : favicon('https://dexscreener.com');
             link.innerHTML =
+                '<img src="' + tokenIcon + '" class="result-favicon" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
                 '<div class="result-info">' +
-                    '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')</span>' +
-                    '<div class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address || '') + '</div>' +
-                    '<div class="result-desc">Preço: ' + priceUsd + '</div>' +
+                    '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</span>' +
+                    '<div class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</div>' +
+                    '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>' +
                 '</div>';
             resultsContainer.appendChild(link);
         }
 
+        // =====================================================================
+        // Orquestra a busca: resultados de token (múltiplas fontes) + resultados web (Serper.dev)
+        // =====================================================================
         function goHome() {
             document.getElementById('searchInput').value = '';
             resultsContainer.innerHTML = "";
@@ -429,7 +626,8 @@
         async function runSearch(query) {
             hideAutocomplete();
             if (!query || !query.trim()) {
-                goHome();
+                resultsContainer.innerHTML = "";
+                homeWidgets.classList.remove('hidden');
                 return;
             }
             const q = query.trim();
@@ -444,19 +642,36 @@
             resultsContainer.innerHTML = "";
 
             if (tokenResults.length === 0 && webResults.length === 0) {
-                resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado encontrado para "' + escapeHtml(q) + '".</div>';
+                resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
                 return;
             }
 
             tokenResults.forEach(renderTokenResult);
             webResults.forEach(renderWebResult);
+
+            if (!SERPER_API_KEY && tokenResults.length === 0) {
+                const note = document.createElement('div');
+                note.className = 'no-results';
+                note.textContent = 'Busca ampla (site oficial, GitHub, Reddit...) ainda não configurada.';
+                resultsContainer.appendChild(note);
+            }
         }
 
         document.getElementById('searchInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') runSearch(e.target.value);
         });
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            if (!e.target.value.trim()) { resultsContainer.innerHTML = ""; homeWidgets.classList.remove('hidden'); }
+            updateAutocomplete(e.target.value);
+        });
 
-        const KNOWN_ASSETS = ["Bitcoin", "Ethereum", "Solana", "RERC", "Tether", "BNB", "XRP", "Cardano", "Dogecoin", "Dólar", "Euro", "Real"];
+        // =====================================================================
+        // Autocomplete real: dropdown clicável, filtra conforme digita (estilo Google)
+        // =====================================================================
+        const KNOWN_ASSETS = [
+            "Bitcoin", "Ethereum", "Solana", "RERC", "Tether", "BNB", "XRP", "Cardano",
+            "Dogecoin", "Tron", "Dólar", "Euro", "Real", "Libra Esterlina", "Iene", "Peso Argentino"
+        ];
         const autocompleteDropdown = document.getElementById('autocompleteDropdown');
 
         function hideAutocomplete() {
@@ -464,28 +679,297 @@
             autocompleteDropdown.innerHTML = '';
         }
 
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            const val = normalize(e.target.value);
-            if (!val) {
-                hideAutocomplete();
-                return;
-            }
-            const matches = KNOWN_ASSETS.filter(a => normalize(a).startsWith(val)).slice(0, 5);
-            if (!matches.length) {
-                hideAutocomplete();
-                return;
-            }
+        function updateAutocomplete(value) {
+            const v = normalize(value);
+            if (!v) { hideAutocomplete(); return; }
+            const matches = KNOWN_ASSETS.filter(a => normalize(a).startsWith(v)).slice(0, 6);
+            if (!matches.length) { hideAutocomplete(); return; }
             autocompleteDropdown.innerHTML = matches.map(a =>
-                '<div class="autocomplete-item" onclick="document.getElementById(\'searchInput\').value=\'' + a + '\'; hideAutocomplete(); runSearch(\'' + a + '\');">' + escapeHtml(a) + '</div>'
+                '<div class="autocomplete-item" onclick="selectSuggestion(' + JSON.stringify(a).replace(/"/g, '&quot;') + ')">' + escapeHtml(a) + '</div>'
             ).join('');
             autocompleteDropdown.classList.add('active');
-        });
+        }
+
+        function selectSuggestion(value) {
+            document.getElementById('searchInput').value = value;
+            hideAutocomplete();
+            runSearch(value);
+        }
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.search-wrap')) hideAutocomplete();
         });
 
+        // =====================================================================
+        // Widgets: 4 cards de cripto (Bitcoin, RERC, Solana, Ethereum) com sparkline
+        // =====================================================================
         function renderSparkline(svgEl, prices) {
             if (!prices || prices.length < 2) return;
             const w = 100, h = 32;
-            const min = Math.min(...prices), max = Math.max(...pr     
+            const min = Math.min(...prices), max = Math.max(...prices);
+            const range = (max - min) || 1;
+            const step = w / (prices.length - 1);
+            const points = prices.map((p, i) => (i * step).toFixed(2) + ',' + (h - ((p - min) / range) * h).toFixed(2)).join(' ');
+            const up = prices[prices.length - 1] >= prices[0];
+            svgEl.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+            svgEl.setAttribute('preserveAspectRatio', 'none');
+            svgEl.innerHTML = '<polyline points="' + points + '" fill="none" stroke="' + (up ? '#4caf50' : '#e05252') + '" stroke-width="1.5"/>';
+        }
+
+        function fillCoinCard(el, { price, changePct, sparkPrices, currency }) {
+            el.querySelector('.coin-price').textContent = currency + parseFloat(price).toLocaleString('pt-BR', { maximumFractionDigits: price < 1 ? 6 : 2 });
+            const changeEl = el.querySelector('.coin-change');
+            const sign = changePct >= 0 ? '+' : '';
+            changeEl.textContent = sign + changePct.toFixed(2) + '%';
+            changeEl.className = 'coin-change ' + (changePct >= 0 ? 'up' : 'down');
+            renderSparkline(el.querySelector('.coin-spark'), sparkPrices);
+        }
+
+        async function fetchWithRetry(url, tries) {
+            tries = tries || 2;
+            for (let i = 0; i < tries; i++) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) return await res.json();
+                } catch (err) { /* tenta de novo */ }
+                if (i < tries - 1) await new Promise(r => setTimeout(r, 600));
+            }
+            throw new Error('falha ao buscar ' + url);
+        }
+
+        async function loadAllCoinGeckoCards(ids) {
+            try {
+                // 1 chamada só pra preço/variação dos 3 (evita bater o limite de pedidos por segundo)
+                const priceData = await fetchWithRetry('https://api.coingecko.com/api/v3/simple/price?ids=' + ids.join(',') + '&vs_currencies=usd&include_24hr_change=true');
+                for (const id of ids) {
+                    const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
+                    if (!el || !priceData[id]) continue;
+                    let prices = [];
+                    try {
+                        const chartData = await fetchWithRetry('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=1');
+                        prices = (chartData.prices || []).map(p => p[1]);
+                    } catch (err) { /* segue sem sparkline */ }
+                    fillCoinCard(el, {
+                        price: priceData[id].usd,
+                        changePct: priceData[id].usd_24h_change || 0,
+                        sparkPrices: prices,
+                        currency: 'US$ '
+                    });
+                }
+            } catch (err) {
+                ids.forEach(id => {
+                    const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
+                    if (el) el.querySelector('.coin-price').textContent = 'indisponível';
+                });
+            }
+        }
+
+        async function loadRercCard() {
+            const el = document.querySelector('.coin-card[data-coin="rerc"]');
+            if (!el) return;
+            try {
+                const data = await fetchWithRetry('https://api.dexscreener.com/latest/dex/search?q=RERC');
+                const pairs = (data.pairs || []).filter(p => p.baseToken && p.baseToken.symbol.toUpperCase() === 'RERC' && p.chainId === 'polygon');
+                if (!pairs.length) throw new Error('sem par encontrado');
+                // pega o par de maior liquidez
+                pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                const pair = pairs[0];
+                let sparkPrices = [];
+                try {
+                    const ohlcvData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/polygon_pos/pools/' + pair.pairAddress + '/ohlcv/hour?limit=24');
+                    const list = ohlcvData.data?.attributes?.ohlcv_list || [];
+                    sparkPrices = list.map(row => row[4]).reverse(); // close price, ordem cronológica
+                } catch (err) { /* sem sparkline, segue só com o preço */ }
+                fillCoinCard(el, {
+                    price: parseFloat(pair.priceUsd),
+                    changePct: pair.priceChange?.h24 || 0,
+                    sparkPrices: sparkPrices,
+                    currency: '$'
+                });
+            } catch (err) {
+                el.querySelector('.coin-price').textContent = 'indisponível';
+            }
+        }
+
+        function loadHomeCards() {
+            loadAllCoinGeckoCards(['bitcoin', 'solana', 'ethereum']);
+            loadRercCard();
+        }
+        loadHomeCards();
+
+        // =====================================================================
+        // Conversor — moedas do mundo (Frankfurter, sem chave) + principais coins/tokens + RERC
+        // =====================================================================
+        const WORLD_CURRENCIES = {
+            USD: 'Dólar americano', EUR: 'Euro', BRL: 'Real brasileiro', GBP: 'Libra esterlina',
+            JPY: 'Iene japonês', CHF: 'Franco suíço', CAD: 'Dólar canadense', AUD: 'Dólar australiano',
+            CNY: 'Yuan chinês', INR: 'Rupia indiana', MXN: 'Peso mexicano', ZAR: 'Rand sul-africano',
+            SEK: 'Coroa sueca', NOK: 'Coroa norueguesa', DKK: 'Coroa dinamarquesa', PLN: 'Zloty polonês',
+            SGD: 'Dólar de Singapura', HKD: 'Dólar de Hong Kong', KRW: 'Won sul-coreano', TRY: 'Lira turca',
+            NZD: 'Dólar neozelandês', CZK: 'Coroa tcheca', HUF: 'Florim húngaro', ILS: 'Shekel israelense',
+            THB: 'Baht tailandês', IDR: 'Rupia indonésia', PHP: 'Peso filipino', RON: 'Leu romeno'
+        };
+        const CRYPTO_CONVERT = {
+            BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', USDT: 'tether', BNB: 'binancecoin',
+            XRP: 'ripple', ADA: 'cardano', DOGE: 'dogecoin', TRX: 'tron'
+        };
+
+        const convFrom = document.getElementById('convFrom');
+        const convTo = document.getElementById('convTo');
+        const convAmountFrom = document.getElementById('convAmountFrom');
+        const convAmountTo = document.getElementById('convAmountTo');
+        const convNote = document.getElementById('convNote');
+
+        function buildConverterOptions() {
+            let html = '<optgroup label="Moedas">';
+            Object.keys(WORLD_CURRENCIES).forEach(code => { html += '<option value="' + code + '">' + code + '</option>'; });
+            html += '</optgroup><optgroup label="Cripto">';
+            Object.keys(CRYPTO_CONVERT).forEach(code => { html += '<option value="' + code + '">' + code + '</option>'; });
+            html += '<option value="RERC">RERC</option></optgroup>';
+            convFrom.innerHTML = html;
+            convTo.innerHTML = html;
+            convFrom.value = 'USD';
+            convTo.value = 'BRL';
+        }
+        buildConverterOptions();
+
+        async function getUsdValueOf(code) {
+            if (code === 'RERC') {
+                const res = await fetch('https://api.dexscreener.com/latest/dex/search?q=RERC');
+                const data = await res.json();
+                const pairs = (data.pairs || []).filter(p => p.baseToken && p.baseToken.symbol.toUpperCase() === 'RERC' && p.chainId === 'polygon');
+                if (!pairs.length) throw new Error('RERC indisponível');
+                pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                return parseFloat(pairs[0].priceUsd);
+            }
+            if (CRYPTO_CONVERT[code]) {
+                const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + CRYPTO_CONVERT[code] + '&vs_currencies=usd');
+                const data = await res.json();
+                return data[CRYPTO_CONVERT[code]].usd;
+            }
+            if (code === 'USD') return 1;
+            // moeda fiat: quantos USD vale 1 unidade dessa moeda (endpoint v2, atual)
+            const res = await fetch('https://api.frankfurter.dev/v2/rate/' + code + '/USD');
+            const data = await res.json();
+            return data.rate;
+        }
+
+        async function runConversion() {
+            const from = convFrom.value, to = convTo.value;
+            const amount = parseFloat(convAmountFrom.value) || 0;
+            convNote.textContent = 'Calculando...';
+            try {
+                const [usdFrom, usdTo] = await Promise.all([getUsdValueOf(from), getUsdValueOf(to)]);
+                const result = amount * usdFrom / usdTo;
+                convAmountTo.value = result.toLocaleString('pt-BR', { maximumFractionDigits: result < 1 ? 8 : 2 });
+                convNote.textContent = 'Cotações de mercado, apenas referência.';
+            } catch (err) {
+                convNote.textContent = 'Não foi possível converter agora.';
+            }
+        }
+        convFrom.addEventListener('change', runConversion);
+        convTo.addEventListener('change', runConversion);
+        convAmountFrom.addEventListener('input', runConversion);
+        runConversion();
+
+        // =====================================================================
+        // Voz
+        // =====================================================================
+        function startVoice() {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                alert("Reconhecimento de voz não suportado neste navegador.");
+                return;
+            }
+            const recognition = new SpeechRec();
+            const btn = document.getElementById('voiceBtn');
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = false;
+            btn.classList.add('listening');
+            recognition.start();
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('searchInput').value = transcript;
+                runSearch(transcript);
+            };
+            recognition.onerror = () => btn.classList.remove('listening');
+            recognition.onend = () => btn.classList.remove('listening');
+        }
+
+        // =====================================================================
+        // Scanner: câmera real, leitura de QR Code e captura de texto
+        // =====================================================================
+        let scannerStream = null;
+        let scanLoopId = null;
+        const video = document.getElementById('scannerVideo');
+        const canvas = document.getElementById('scannerCanvas');
+        const overlay = document.getElementById('scannerOverlay');
+        const status = document.getElementById('scannerStatus');
+
+        function startScanner() {
+            overlay.classList.add('active');
+            status.textContent = "Aponte a câmera para um QR Code ou texto";
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(stream => {
+                    scannerStream = stream;
+                    video.srcObject = stream;
+                    video.play();
+                    scanLoopId = requestAnimationFrame(scanQRLoop);
+                })
+                .catch(() => { status.textContent = "Não foi possível acessar a câmera."; });
+        }
+
+        function scanQRLoop() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code && code.data) {
+                    status.textContent = "QR Code detectado: " + code.data;
+                    document.getElementById('searchInput').value = code.data;
+                    closeScanner();
+                    runSearch(code.data);
+                    return;
+                }
+            }
+            scanLoopId = requestAnimationFrame(scanQRLoop);
+        }
+
+        function captureText() {
+            if (!video.videoWidth) return;
+            status.textContent = "Lendo texto...";
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(blob => {
+                Tesseract.recognize(blob, 'por')
+                    .then(({ data: { text } }) => {
+                        const clean = text.trim();
+                        if (clean) {
+                            document.getElementById('searchInput').value = clean;
+                            status.textContent = "Texto capturado.";
+                            closeScanner();
+                            runSearch(clean);
+                        } else {
+                            status.textContent = "Nenhum texto reconhecido, tente novamente.";
+                        }
+                    })
+                    .catch(() => { status.textContent = "Erro ao ler o texto."; });
+            });
+        }
+
+        function closeScanner() {
+            overlay.classList.remove('active');
+            if (scanLoopId) cancelAnimationFrame(scanLoopId);
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(t => t.stop());
+                scannerStream = null;
+            }
+        }
+    </script>
+</body>
+</html>
