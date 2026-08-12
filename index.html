@@ -99,7 +99,6 @@
         .icon-btn.listening svg { fill: var(--accent-color); }
         .icon-btn svg { width: 22px; height: 22px; fill: var(--text-color); }
 
-        /* ---- Widgets da tela inicial ---- */
         .home-widgets {
             width: 100%;
             max-width: 600px;
@@ -134,7 +133,6 @@
         .coin-change.down { color: #e05252; }
         .coin-spark { width: 100%; height: 30px; margin-top: 8px; display: block; opacity: 0.9; }
 
-        /* ---- Conversor ---- */
         .converter-box {
             margin-top: 22px;
             border: 1px solid var(--border-color);
@@ -175,7 +173,6 @@
         .converter-select option { color: #000; }
         .converter-note { font-size: 0.75rem; opacity: 0.55; margin-top: 8px; text-align: center; }
 
-        /* ---- Resultados da busca ---- */
         .results-container {
             width: 100%;
             max-width: 600px;
@@ -208,7 +205,6 @@
         .result-desc { font-size: 0.9rem; opacity: 0.85; margin-top: 4px; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
 
-        /* Dropdown de autocomplete */
         .search-wrap { position: relative; width: 100%; max-width: 600px; }
         @media (min-width: 900px) { .search-wrap { max-width: 720px; } }
         @media (max-width: 480px) { .search-wrap { max-width: 92vw; } }
@@ -231,7 +227,6 @@
         }
         .autocomplete-item:hover, .autocomplete-item.highlighted { background: rgba(212,175,55,0.12); }
 
-        /* Modal do scanner */
         .scanner-overlay {
             display: none;
             position: fixed;
@@ -281,7 +276,7 @@
 
     <div class="search-wrap">
         <div class="search-box">
-            <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar na web, ativos ou tokens..." autocomplete="off">
+            <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens..." autocomplete="off">
             <button class="icon-btn" id="voiceBtn" onclick="startVoice()" title="Voz">
                 <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
             </button>
@@ -301,7 +296,7 @@
         </div>
 
         <div class="converter-box">
-            <div class="converter-title">Conversor Universal</div>
+            <div class="converter-title">Conversor</div>
             <div class="converter-row">
                 <input type="number" id="convAmountFrom" class="converter-amount" value="1">
                 <select id="convFrom" class="converter-select"></select>
@@ -310,13 +305,12 @@
                 <input type="number" id="convAmountTo" class="converter-amount" readonly>
                 <select id="convTo" class="converter-select"></select>
             </div>
-            <div class="converter-note" id="convNote">Cotações de mercado globais e criptoativos em tempo real.</div>
+            <div class="converter-note" id="convNote">Cotações de mercado, apenas referência.</div>
         </div>
     </div>
 
     <div class="results-container" id="resultsContainer"></div>
 
-    <!-- Modal do scanner -->
     <div class="scanner-overlay" id="scannerOverlay">
         <video id="scannerVideo" class="scanner-video" autoplay playsinline muted></video>
         <canvas id="scannerCanvas" style="display:none;"></canvas>
@@ -328,11 +322,7 @@
     </div>
 
     <script>
-        // =====================================================================
-        // CONFIGURAÇÃO
-        // =====================================================================
         const SERPER_API_KEY = "32ae43fa233c01d6867bd876d2cb83d9661397d4";
-
         const resultsContainer = document.getElementById('resultsContainer');
         const homeWidgets = document.getElementById('homeWidgets');
 
@@ -352,13 +342,9 @@
             }
         }
 
-        // =====================================================================
-        // BUSCA NA WEB ABERTA (SERPER.DEV) - Corrigido para buscar de tudo
-        // =====================================================================
         async function fetchWebResults(query) {
             if (!SERPER_API_KEY) return [];
             try {
-                // FIM DO BLOQUEIO DE DOMÍNIOS: Agora busca livremente na internet como o Google (Reddit, sites, etc)
                 const res = await fetch('https://google.serper.dev/search', {
                     method: 'POST',
                     headers: {
@@ -366,19 +352,16 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        q: query, // Busca o termo exato sem travas
-                        num: 10
+                        q: query,
+                        num: 6
                     })
                 });
                 const data = await res.json();
-                
-                const results = (data.organic || []).map(item => ({
+                return (data.organic || []).map(item => ({
                     url: item.link,
                     title: item.title,
                     content: item.snippet || ''
                 }));
-                
-                return results;
             } catch (err) {
                 return [];
             }
@@ -397,61 +380,112 @@
                 '<div class="result-info">' +
                     '<span class="result-name">' + escapeHtml(r.title || domain) + '</span>' +
                     '<div class="result-url">' + escapeHtml(domain) + '</div>' +
-                    '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + (r.content && r.content.length > 160 ? '…' : '') + '</div>' +
+                    '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + '</div>' +
                 '</div>';
             resultsContainer.appendChild(link);
         }
 
-        // =====================================================================
-        // BUSCA DE TOKENS (CoinGecko, Binance, DexScreener, GeckoTerminal)
-        // =====================================================================
-        async function fetchDexScreenerTokens(qLower, query) {
+        async function fetchTokenResults(query) {
             try {
                 const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(query));
                 const data = await res.json();
-                const pairs = data.pairs || [];
-                const matches = pairs.filter(p =>
-                    p.baseToken && (
-                        p.baseToken.name.toLowerCase() === qLower ||
-                        p.baseToken.symbol.toLowerCase() === qLower ||
-                        p.baseToken.address.toLowerCase() === qLower
-                    )
-                );
-                return matches.map(p => Object.assign({}, p, { source: 'dexscreener' }));
-            } catch (err) { return []; }
+                const pairs = (data.pairs || []).slice(0, 3);
+                return pairs.map(p => ({
+                    baseToken: p.baseToken,
+                    chainId: p.chainId,
+                    priceUsd: p.priceUsd,
+                    liquidity: p.liquidity,
+                    url: p.url,
+                    info: p.info || {}
+                }));
+            } catch (err) {
+                return [];
+            }
         }
 
-        async function fetchGeckoTerminalPools(qLower, query) {
-            try {
-                const res = await fetch("https://api.geckoterminal.com/api/v2/search/pools?query=" + encodeURIComponent(query) + "&include=base_token,dex,network&page=1");
-                const data = await res.json();
-                const byId = {};
-                (data.included || []).forEach(item => { byId[item.type + ':' + item.id] = item; });
-                const matches = [];
-                (data.data || []).forEach(pool => {
-                    const rel = pool.relationships || {};
-                    const tokenRef = rel.base_token && rel.base_token.data;
-                    const dexRef = rel.dex && rel.dex.data;
-                    const netRef = rel.network && rel.network.data;
-                    const token = tokenRef ? byId['token:' + tokenRef.id] : null;
-                    if (!token || !token.attributes) return;
-                    const tName = (token.attributes.name || '').toLowerCase();
-                    const tSymbol = (token.attributes.symbol || '').toLowerCase();
-                    const tAddress = (token.attributes.address || '').toLowerCase();
-                    if (tName !== qLower && tSymbol !== qLower && tAddress !== qLower) return;
-                    const dex = dexRef ? byId['dex:' + dexRef.id] : null;
-                    const network = netRef ? netRef.id : '';
-                    const dexName = dex && dex.attributes ? dex.attributes.name : '';
-                    matches.push({
-                        baseToken: {
-                            name: token.attributes.name,
-                            symbol: token.attributes.symbol,
-                            address: token.attributes.address
-                        },
-                        chainId: network + (dexName ? ' (' + dexName + ')' : ''),
-                        priceUsd: pool.attributes.base_token_price_usd,
-                        liquidity: { usd: parseFloat(pool.attributes.reserve_in_usd) || 0 },
-                        url: 'https://www.geckoterminal.com/' + network + '/pools/' + pool.attributes.address,
-                        pairCreatedAt: pool.attributes.pool_created_at ? new Date(pool.attributes.pool_created_at).getTime() : null,
-                        info: (token.attributes.image_url && token.attributes.image_url.indexOf('missing') === -1) ? { imageUrl: token.attributes.image_url } : {},
-     
+        function renderTokenResult(p) {
+            const link = document.createElement('a');
+            link.className = 'result-link';
+            link.href = p.url || '#';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
+            link.innerHTML =
+                '<div class="result-info">' +
+                    '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')</span>' +
+                    '<div class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address || '') + '</div>' +
+                    '<div class="result-desc">Preço: ' + priceUsd + '</div>' +
+                '</div>';
+            resultsContainer.appendChild(link);
+        }
+
+        function goHome() {
+            document.getElementById('searchInput').value = '';
+            resultsContainer.innerHTML = "";
+            homeWidgets.classList.remove('hidden');
+            hideAutocomplete();
+        }
+
+        async function runSearch(query) {
+            hideAutocomplete();
+            if (!query || !query.trim()) {
+                goHome();
+                return;
+            }
+            const q = query.trim();
+            homeWidgets.classList.add('hidden');
+            resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
+
+            const [tokenResults, webResults] = await Promise.all([
+                fetchTokenResults(q),
+                fetchWebResults(q)
+            ]);
+
+            resultsContainer.innerHTML = "";
+
+            if (tokenResults.length === 0 && webResults.length === 0) {
+                resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado encontrado para "' + escapeHtml(q) + '".</div>';
+                return;
+            }
+
+            tokenResults.forEach(renderTokenResult);
+            webResults.forEach(renderWebResult);
+        }
+
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') runSearch(e.target.value);
+        });
+
+        const KNOWN_ASSETS = ["Bitcoin", "Ethereum", "Solana", "RERC", "Tether", "BNB", "XRP", "Cardano", "Dogecoin", "Dólar", "Euro", "Real"];
+        const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+
+        function hideAutocomplete() {
+            autocompleteDropdown.classList.remove('active');
+            autocompleteDropdown.innerHTML = '';
+        }
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const val = normalize(e.target.value);
+            if (!val) {
+                hideAutocomplete();
+                return;
+            }
+            const matches = KNOWN_ASSETS.filter(a => normalize(a).startsWith(val)).slice(0, 5);
+            if (!matches.length) {
+                hideAutocomplete();
+                return;
+            }
+            autocompleteDropdown.innerHTML = matches.map(a =>
+                '<div class="autocomplete-item" onclick="document.getElementById(\'searchInput\').value=\'' + a + '\'; hideAutocomplete(); runSearch(\'' + a + '\');">' + escapeHtml(a) + '</div>'
+            ).join('');
+            autocompleteDropdown.classList.add('active');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-wrap')) hideAutocomplete();
+        });
+
+        function renderSparkline(svgEl, prices) {
+            if (!prices || prices.length < 2) return;
+            const w = 100, h = 32;
+            const min = Math.min(...prices), max = Math.max(...pr     
