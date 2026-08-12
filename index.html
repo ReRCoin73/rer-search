@@ -110,26 +110,29 @@
         .home-widgets.hidden { display: none; }
 
         .coin-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 10px;
-            overflow-x: auto;
-            padding-bottom: 4px;
         }
+        @media (min-width: 560px) { .coin-row { grid-template-columns: repeat(4, 1fr); } }
         .coin-card {
-            flex: 1 1 0;
-            min-width: 130px;
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            padding: 12px 14px;
-            background: rgba(255,255,255,0.02);
+            position: relative;
+            border-radius: 16px;
+            padding: 14px 16px;
+            background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+            border: 1px solid rgba(255,255,255,0.08);
+            overflow: hidden;
         }
-        .coin-card.rerc-card { border-color: var(--accent-color); background: rgba(212,175,55,0.05); }
-        .coin-ticker { font-weight: bold; font-size: 0.95rem; }
-        .coin-price { font-size: 0.8rem; opacity: 0.75; margin-top: 2px; }
-        .coin-change { font-size: 1rem; font-weight: bold; margin-top: 4px; }
+        .coin-card.rerc-card {
+            border-color: rgba(212,175,55,0.5);
+            background: linear-gradient(160deg, rgba(212,175,55,0.12), rgba(212,175,55,0.02));
+        }
+        .coin-ticker { font-weight: bold; font-size: 0.92rem; letter-spacing: 0.3px; opacity: 0.95; }
+        .coin-price { font-size: 0.78rem; opacity: 0.6; margin-top: 3px; }
+        .coin-change { font-size: 1.05rem; font-weight: bold; margin-top: 5px; }
         .coin-change.up { color: #4caf50; }
         .coin-change.down { color: #e05252; }
-        .coin-spark { width: 100%; height: 32px; margin-top: 6px; display: block; }
+        .coin-spark { width: 100%; height: 30px; margin-top: 8px; display: block; opacity: 0.9; }
 
         /* ---- Conversor ---- */
         .converter-box {
@@ -182,13 +185,16 @@
         @media (max-width: 480px) { .results-container { max-width: 92vw; } }
 
         .result-link {
-            display: block;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
             padding: 12px 4px;
             margin-bottom: 20px;
             text-decoration: none;
             color: inherit;
         }
-        .result-url { font-size: 0.82rem; opacity: 0.65; word-break: break-all; margin-bottom: 2px; }
+        .result-favicon { width: 20px; height: 20px; border-radius: 4px; margin-top: 3px; flex-shrink: 0; }
+        .result-info { min-width: 0; flex: 1; }
         .result-name {
             font-weight: bold; font-size: 1.15rem; color: var(--accent-color);
             display: block;
@@ -198,24 +204,32 @@
             font-size: 0.6rem; color: var(--bg-color); background: var(--accent-color);
             border-radius: 8px; padding: 2px 7px; margin-left: 8px; vertical-align: middle;
         }
-        .result-desc { font-size: 0.9rem; opacity: 0.8; margin-top: 3px; }
+        .result-url { font-size: 0.8rem; opacity: 0.7; word-break: break-all; margin-top: 1px; }
+        .result-desc { font-size: 0.9rem; opacity: 0.85; margin-top: 4px; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
 
-        .quote-box {
-            width: 100%;
-            border: 1.5px solid var(--accent-color);
+        /* Dropdown de autocomplete (estilo Google) */
+        .search-wrap { position: relative; width: 100%; max-width: 600px; }
+        @media (min-width: 900px) { .search-wrap { max-width: 720px; } }
+        @media (max-width: 480px) { .search-wrap { max-width: 92vw; } }
+        .autocomplete-dropdown {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0; right: 0;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
             border-radius: 14px;
-            padding: 16px 18px;
-            margin-bottom: 22px;
-            background: rgba(212,175,55,0.06);
+            overflow: hidden;
+            z-index: 50;
+            display: none;
         }
-        .quote-title { font-size: 1rem; opacity: 0.8; }
-        .quote-value { font-size: 1.8rem; font-weight: bold; margin: 4px 0; }
-        .quote-change { font-size: 0.9rem; }
-        .quote-change.up { color: #4caf50; }
-        .quote-change.down { color: #e05252; }
-        .quote-source { font-size: 0.78rem; opacity: 0.6; margin-top: 6px; }
-        .quote-source a { color: inherit; }
+        .autocomplete-dropdown.active { display: block; }
+        .autocomplete-item {
+            padding: 11px 18px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .autocomplete-item:hover, .autocomplete-item.highlighted { background: rgba(212,175,55,0.12); }
 
         /* Modal do scanner */
         .scanner-overlay {
@@ -260,20 +274,22 @@
 </head>
 <body>
 
-    <div class="header-container">
+    <div class="header-container" id="homeLink" onclick="goHome()" style="cursor:pointer;">
         <h1 class="brand-title"><span class="rer-part">ReR</span> Search</h1>
     </div>
     <div class="slogan">Cripto - Câmbio - Token</div>
 
-    <div class="search-box">
-        <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens..." list="suggestionList" autocomplete="off">
-        <datalist id="suggestionList"></datalist>
-        <button class="icon-btn" id="voiceBtn" onclick="startVoice()" title="Voz">
-            <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
-        </button>
-        <button class="icon-btn" onclick="startScanner()" title="Scanner">
-            <svg viewBox="0 0 24 24"><path d="M3 5v4h2V5h4V3H5a2 2 0 0 0-2 2m16-2h-4v2h4v4h2V5a2 2 0 0 0-2-2M3 19v-4h2v4h4v2H5a2 2 0 0 1-2-2m18 0a2 2 0 0 1-2 2h-4v-2h4v-4h2M7 7h10v10H7V7Z"/></svg>
-        </button>
+    <div class="search-wrap">
+        <div class="search-box">
+            <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens..." autocomplete="off">
+            <button class="icon-btn" id="voiceBtn" onclick="startVoice()" title="Voz">
+                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
+            </button>
+            <button class="icon-btn" onclick="startScanner()" title="Scanner">
+                <svg viewBox="0 0 24 24"><path d="M3 5v4h2V5h4V3H5a2 2 0 0 0-2 2m16-2h-4v2h4v4h2V5a2 2 0 0 0-2-2M3 19v-4h2v4h4v2H5a2 2 0 0 1-2-2m18 0a2 2 0 0 1-2 2h-4v-2h4v-4h2M7 7h10v10H7V7Z"/></svg>
+            </button>
+        </div>
+        <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
     </div>
 
     <!-- Widgets da tela inicial: 4 cards + conversor. Somem quando há busca. -->
@@ -317,13 +333,15 @@
         // CONFIGURAÇÃO — preencher quando tiver as chaves.
         // =====================================================================
         // Tavily (busca ampla filtrada em sites de mercado/cripto): tavily.com -> conta grátis -> API key.
-        const TAVILY_API_KEY = "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"; // <-- cole aqui a chave (tvly-...)
+        const TAVILY_API_KEY = ""; // <-- cole aqui a chave (tvly-...)
         // Domínios liberados pra busca ampla: sites oficiais de projetos, exploradores de blockchain,
-        // GitHub, Reddit, CoinGecko/CoinMarketCap etc. Ajuste essa lista à vontade.
+        // GitHub, CoinGecko/CoinMarketCap, e imprensa financeira séria. Ajuste essa lista à vontade.
         const TAVILY_INCLUDE_DOMAINS = [
             "github.com", "reddit.com", "polygonscan.com", "etherscan.io", "bscscan.com",
             "solscan.io", "tronscan.org", "coingecko.com", "coinmarketcap.com",
-            "dexscreener.com", "geckoterminal.com", "docs.*", "*.gitbook.io"
+            "dexscreener.com", "geckoterminal.com", "docs.*", "*.gitbook.io",
+            "g1.globo.com", "valor.globo.com", "infomoney.com.br", "moneytimes.com.br",
+            "exame.com", "cointelegraph.com", "investing.com", "reuters.com", "bloomberg.com"
         ];
 
         const resultsContainer = document.getElementById('resultsContainer');
@@ -337,81 +355,20 @@
         }
 
         // =====================================================================
-        // Cotações de mercado (cripto e câmbio) — usado na busca por termo exato
-        // =====================================================================
-        const CRYPTO_IDS = {
-            bitcoin: 'bitcoin', btc: 'bitcoin',
-            ethereum: 'ethereum', eth: 'ethereum',
-            solana: 'solana', sol: 'solana',
-            tether: 'tether', usdt: 'tether',
-            bnb: 'binancecoin', binancecoin: 'binancecoin',
-            xrp: 'ripple', ripple: 'ripple',
-            cardano: 'cardano', ada: 'cardano',
-            dogecoin: 'dogecoin', doge: 'dogecoin',
-            tron: 'tron', trx: 'tron'
-        };
-        const FIAT_KEYWORDS = {
-            dolar: 'USD-BRL', dollar: 'USD-BRL', usd: 'USD-BRL',
-            euro: 'EUR-BRL', eur: 'EUR-BRL'
-        };
-
-        async function tryMarketQuote(qNorm) {
-            const cryptoId = CRYPTO_IDS[qNorm] || (qNorm.includes('bitcoin') ? 'bitcoin' : null);
-            if (cryptoId) {
-                try {
-                    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + cryptoId + '&vs_currencies=usd,brl&include_24hr_change=true');
-                    const data = await res.json();
-                    const d = data[cryptoId];
-                    if (d) {
-                        renderQuoteBox({
-                            title: cryptoId.charAt(0).toUpperCase() + cryptoId.slice(1) + ' (' + qNorm.toUpperCase() + ')',
-                            value: 'US$ ' + d.usd.toLocaleString('pt-BR', {maximumFractionDigits: 2}) + '  ·  R$ ' + d.brl.toLocaleString('pt-BR', {maximumFractionDigits: 2}),
-                            change: d.usd_24h_change || 0,
-                            sourceUrl: 'https://www.coingecko.com/pt/moedas/' + cryptoId,
-                            sourceName: 'CoinGecko'
-                        });
-                        return true;
-                    }
-                } catch (err) { /* segue */ }
-            }
-            const fiatPair = FIAT_KEYWORDS[qNorm];
-            if (fiatPair) {
-                try {
-                    const res = await fetch('https://economia.awesomeapi.com.br/last/' + fiatPair);
-                    const data = await res.json();
-                    const d = data[fiatPair.replace('-', '')];
-                    if (d) {
-                        renderQuoteBox({
-                            title: (fiatPair === 'USD-BRL' ? 'Dólar americano' : 'Euro') + ' → Real',
-                            value: 'R$ ' + parseFloat(d.bid).toLocaleString('pt-BR', {minimumFractionDigits: 4}),
-                            change: parseFloat(d.pctChange),
-                            sourceUrl: 'https://www.awesomeapi.com.br/',
-                            sourceName: 'AwesomeAPI'
-                        });
-                        return true;
-                    }
-                } catch (err) { /* segue */ }
-            }
-            return false;
-        }
-
-        function renderQuoteBox(q) {
-            const changeClass = q.change >= 0 ? 'up' : 'down';
-            const changeSign = q.change >= 0 ? '+' : '';
-            const box = document.createElement('div');
-            box.className = 'quote-box';
-            box.innerHTML =
-                '<div class="quote-title">' + escapeHtml(q.title) + '</div>' +
-                '<div class="quote-value">' + q.value + '</div>' +
-                '<div class="quote-change ' + changeClass + '">' + changeSign + q.change.toFixed(2) + '% (24h)</div>' +
-                '<div class="quote-source">Fonte: <a href="' + q.sourceUrl + '" target="_blank" rel="noopener">' + q.sourceName + '</a></div>';
-            resultsContainer.appendChild(box);
-        }
-
-        // =====================================================================
-        // Busca ampla (Tavily) — site oficial, GitHub, Reddit, explorer, docs...
+        // Busca ampla (Tavily) — site oficial, GitHub, Reddit, explorer, docs, imprensa séria...
         // restrita à lista de domínios de mercado/cripto em TAVILY_INCLUDE_DOMAINS.
+        // Filtro de correspondência exata: só mantém resultado se o termo buscado
+        // aparece de verdade no título/conteúdo (evita trazer ativo diferente por engano).
         // =====================================================================
+        function favicon(url, size) {
+            try {
+                const domain = new URL(url).hostname;
+                return 'https://www.google.com/s2/favicons?sz=' + (size || 32) + '&domain=' + domain;
+            } catch (e) {
+                return '';
+            }
+        }
+
         async function fetchWebResults(query) {
             if (!TAVILY_API_KEY) return [];
             try {
@@ -420,13 +377,19 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         api_key: TAVILY_API_KEY,
-                        query: query,
+                        query: '"' + query + '"',
                         include_domains: TAVILY_INCLUDE_DOMAINS,
-                        max_results: 8
+                        max_results: 10
                     })
                 });
                 const data = await res.json();
-                return data.results || [];
+                const results = data.results || [];
+                const qNorm = normalize(query);
+                // Mantém só resultado onde o termo pesquisado realmente aparece no título ou conteúdo
+                return results.filter(r => {
+                    const haystack = normalize((r.title || '') + ' ' + (r.content || ''));
+                    return haystack.includes(qNorm);
+                });
             } catch (err) {
                 return [];
             }
@@ -439,10 +402,14 @@
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             const domain = (() => { try { return new URL(r.url).hostname; } catch (e) { return r.url; } })();
+            const icon = favicon(r.url);
             link.innerHTML =
-                '<span class="result-url">' + escapeHtml(domain) + '</span>' +
-                '<span class="result-name">' + escapeHtml(r.title || domain) + '</span>' +
-                '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + (r.content && r.content.length > 160 ? '…' : '') + '</div>';
+                (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
+                '<div class="result-info">' +
+                    '<span class="result-name">' + escapeHtml(r.title || domain) + '</span>' +
+                    '<div class="result-url">' + escapeHtml(domain) + '</div>' +
+                    '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + (r.content && r.content.length > 160 ? '…' : '') + '</div>' +
+                '</div>';
             resultsContainer.appendChild(link);
         }
 
@@ -463,32 +430,24 @@
                     )
                 );
                 const seen = new Set();
-                return matches.filter(p => {
+                const unique = matches.filter(p => {
                     const key = p.chainId + p.baseToken.address;
                     if (seen.has(key)) return false;
                     seen.add(key);
                     return true;
                 });
+                // Ordena por liquidez (mais relevante primeiro) e corta ruído de token-ponte com pouca liquidez
+                unique.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                const MIN_LIQUIDITY = 20000;
+                const filtered = unique.filter(p => (p.liquidity?.usd || 0) >= MIN_LIQUIDITY);
+                return (filtered.length ? filtered : unique).slice(0, 3);
             } catch (err) {
                 return [];
             }
         }
 
         function renderTokenResult(p) {
-            const isNew = p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 24 * 60 * 60 * 1000;
-            const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
-            const liquidity = p.liquidity && p.liquidity.usd ? 'Liquidez: $' + Math.round(p.liquidity.usd).toLocaleString('pt-BR') : '';
             const officialSite = (p.info && p.info.websites && p.info.websites[0]) ? p.info.websites[0].url : null;
-            const link = document.createElement('a');
-            link.className = 'result-link';
-            link.href = p.url || officialSite || '#';
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.innerHTML =
-                '<span class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</span>' +
-                '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</span>' +
-                '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>';
-            resultsContainer.appendChild(link);
             if (officialSite) {
                 const siteLink = document.createElement('a');
                 siteLink.className = 'result-link';
@@ -496,29 +455,55 @@
                 siteLink.target = '_blank';
                 siteLink.rel = 'noopener noreferrer';
                 const domain = (() => { try { return new URL(officialSite).hostname; } catch (e) { return officialSite; } })();
+                const icon = favicon(officialSite);
                 siteLink.innerHTML =
-                    '<span class="result-url">' + escapeHtml(domain) + '</span>' +
-                    '<span class="result-name">Site oficial — ' + escapeHtml(p.baseToken.name) + '</span>';
+                    (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
+                    '<div class="result-info">' +
+                        '<span class="result-name">Site oficial — ' + escapeHtml(p.baseToken.name) + '</span>' +
+                        '<div class="result-url">' + escapeHtml(domain) + '</div>' +
+                    '</div>';
                 resultsContainer.appendChild(siteLink);
             }
+
+            const isNew = p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 24 * 60 * 60 * 1000;
+            const priceUsd = p.priceUsd ? '$' + parseFloat(p.priceUsd).toLocaleString('pt-BR', {maximumFractionDigits: 6}) : '';
+            const liquidity = p.liquidity && p.liquidity.usd ? 'Liquidez: $' + Math.round(p.liquidity.usd).toLocaleString('pt-BR') : '';
+            const link = document.createElement('a');
+            link.className = 'result-link';
+            link.href = p.url || officialSite || '#';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            const tokenIcon = (p.info && p.info.imageUrl) ? p.info.imageUrl : favicon('https://dexscreener.com');
+            link.innerHTML =
+                '<img src="' + tokenIcon + '" class="result-favicon" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+                '<div class="result-info">' +
+                    '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</span>' +
+                    '<div class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</div>' +
+                    '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>' +
+                '</div>';
+            resultsContainer.appendChild(link);
         }
 
         // =====================================================================
-        // Orquestra a busca: cotação + resultados de token + resultados web (Tavily)
+        // Orquestra a busca: resultados de token + resultados web (Tavily)
         // =====================================================================
+        function goHome() {
+            document.getElementById('searchInput').value = '';
+            resultsContainer.innerHTML = "";
+            homeWidgets.classList.remove('hidden');
+            hideAutocomplete();
+        }
+
         async function runSearch(query) {
+            hideAutocomplete();
             if (!query || !query.trim()) {
                 resultsContainer.innerHTML = "";
                 homeWidgets.classList.remove('hidden');
                 return;
             }
             const q = query.trim();
-            const qNorm = normalize(q);
             homeWidgets.classList.add('hidden');
             resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
-
-            let gotQuote = false;
-            try { gotQuote = await tryMarketQuote(qNorm); } catch (err) { /* segue */ }
 
             const [tokenResults, webResults] = await Promise.all([
                 fetchTokenResults(q),
@@ -526,9 +511,8 @@
             ]);
 
             resultsContainer.innerHTML = "";
-            if (gotQuote) { try { await tryMarketQuote(qNorm); } catch (err) {} }
 
-            if (!gotQuote && tokenResults.length === 0 && webResults.length === 0) {
+            if (tokenResults.length === 0 && webResults.length === 0) {
                 resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
                 return;
             }
@@ -549,18 +533,43 @@
         });
         document.getElementById('searchInput').addEventListener('input', (e) => {
             if (!e.target.value.trim()) { resultsContainer.innerHTML = ""; homeWidgets.classList.remove('hidden'); }
+            updateAutocomplete(e.target.value);
         });
 
         // =====================================================================
-        // Autocomplete simples (datalist) com ativos e moedas conhecidos
+        // Autocomplete real: dropdown clicável, filtra conforme digita (estilo Google)
         // =====================================================================
         const KNOWN_ASSETS = [
-            "Bitcoin", "BTC", "Ethereum", "ETH", "Solana", "SOL", "RERC", "ReR Coin",
-            "Tether", "USDT", "BNB", "XRP", "Cardano", "ADA", "Dogecoin", "DOGE", "Tron", "TRX",
-            "Dólar", "Euro", "Real", "Libra Esterlina", "Iene", "Peso Argentino"
+            "Bitcoin", "Ethereum", "Solana", "RERC", "Tether", "BNB", "XRP", "Cardano",
+            "Dogecoin", "Tron", "Dólar", "Euro", "Real", "Libra Esterlina", "Iene", "Peso Argentino"
         ];
-        const datalist = document.getElementById('suggestionList');
-        datalist.innerHTML = KNOWN_ASSETS.map(a => '<option value="' + escapeHtml(a) + '">').join('');
+        const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+
+        function hideAutocomplete() {
+            autocompleteDropdown.classList.remove('active');
+            autocompleteDropdown.innerHTML = '';
+        }
+
+        function updateAutocomplete(value) {
+            const v = normalize(value);
+            if (!v) { hideAutocomplete(); return; }
+            const matches = KNOWN_ASSETS.filter(a => normalize(a).startsWith(v)).slice(0, 6);
+            if (!matches.length) { hideAutocomplete(); return; }
+            autocompleteDropdown.innerHTML = matches.map(a =>
+                '<div class="autocomplete-item" onclick="selectSuggestion(' + JSON.stringify(a).replace(/"/g, '&quot;') + ')">' + escapeHtml(a) + '</div>'
+            ).join('');
+            autocompleteDropdown.classList.add('active');
+        }
+
+        function selectSuggestion(value) {
+            document.getElementById('searchInput').value = value;
+            hideAutocomplete();
+            runSearch(value);
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-wrap')) hideAutocomplete();
+        });
 
         // =====================================================================
         // Widgets: 4 cards de cripto (Bitcoin, RERC, Solana, Ethereum) com sparkline
