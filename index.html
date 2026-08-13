@@ -227,19 +227,23 @@
             top: calc(100% + 6px);
             left: 0; right: 0;
             background: var(--bg-color);
-            border: 1px solid var(--border-color);
+            border: 1.5px solid var(--accent-color);
             border-radius: 14px;
             overflow: hidden;
-            z-index: 50;
+            z-index: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
             display: none;
         }
         .autocomplete-dropdown.active { display: block; }
         .autocomplete-item {
-            padding: 11px 18px;
+            padding: 12px 18px;
             cursor: pointer;
             font-size: 1rem;
+            color: var(--text-color);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .autocomplete-item:hover, .autocomplete-item.highlighted { background: rgba(212,175,55,0.12); }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover, .autocomplete-item.highlighted { background: rgba(212,175,55,0.15); }
 
         /* Modal do scanner */
         .scanner-overlay {
@@ -497,8 +501,34 @@
             }
         }
 
+        // Pool confirmado do RERC/WPOL na Polygon — usado como atalho confiável na busca
+        // (a busca genérica por nome "RERC" vem falhando com frequência e deixando ganhar
+        // resultado homônimo tipo o centro de pesquisa dos EUA com a mesma sigla).
+        const RERC_POOL_ADDRESS = '0xe958cf100112f01d1639bb786c81f6ed46d1eabb';
+
+        async function fetchRercDirect() {
+            try {
+                const dexData = await fetch('https://api.dexscreener.com/latest/dex/pairs/polygon/' + RERC_POOL_ADDRESS).then(r => r.json());
+                const pair = (dexData.pairs && dexData.pairs[0]) || dexData.pair;
+                if (!pair || !pair.priceUsd) return null;
+                return {
+                    baseToken: { name: 'ReR Coin', symbol: 'RERC', address: pair.baseToken.address },
+                    chainId: 'polygon',
+                    priceUsd: pair.priceUsd,
+                    priceChange: pair.priceChange,
+                    liquidity: pair.liquidity,
+                    url: pair.url || ('https://dexscreener.com/polygon/' + RERC_POOL_ADDRESS),
+                    info: pair.info || {}
+                };
+            } catch (err) { return null; }
+        }
+
         async function fetchTokenResults(query) {
             const qLower = query.toLowerCase().trim();
+            if (qLower === 'rerc' || qLower === 'rer coin' || qLower === 'rer') {
+                const direct = await fetchRercDirect();
+                if (direct) return [direct];
+            }
             const [dex, cg] = await Promise.all([
                 fetchDexScreenerTokens(qLower, query),
                 fetchCoinGeckoTokens(qLower, query)
@@ -708,7 +738,20 @@
         function updateAutocomplete(value) {
             const v = normalize(value);
             if (!v) { hideAutocomplete(); return; }
-            const matches = KNOWN_ASSETS.filter(a => normalize(a).startsWith(v)).slice(0, 6);
+            const pool = KNOWN_ASSETS
+                .concat(cryptoList.map(c => c.name))
+                .concat(cryptoList.map(c => c.symbol.toUpperCase()))
+                .concat(Object.values(WORLD_CURRENCIES));
+            const seen = new Set();
+            const matches = [];
+            for (const a of pool) {
+                const aNorm = normalize(a);
+                if (aNorm.startsWith(v) && !seen.has(aNorm)) {
+                    seen.add(aNorm);
+                    matches.push(a);
+                    if (matches.length >= 8) break;
+                }
+            }
             if (!matches.length) { hideAutocomplete(); return; }
             autocompleteDropdown.innerHTML = matches.map(a =>
                 '<div class="autocomplete-item" onclick="selectSuggestion(' + JSON.stringify(a).replace(/"/g, '&quot;') + ')">' + escapeHtml(a) + '</div>'
@@ -936,15 +979,25 @@ loadHomeCards();
 
         function startScanner() {
             overlay.classList.add('active');
-            status.textContent = "Aponte a câmera para um QR Code ou texto";
+            status.textContent = "Pedindo acesso à câmera...";
             navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
                 .then(stream => {
                     scannerStream = stream;
                     video.srcObject = stream;
-                    video.play();
+                    video.onloadedmetadata = () => {
+                        status.textContent = "Aponte a câmera para um QR Code ou texto";
+                    };
+                    video.onerror = () => {
+                        status.textContent = "A câmera abriu mas não conseguiu carregar o vídeo. Fecha e tenta de novo.";
+                    };
+                    video.play().catch(() => {
+                        status.textContent = "A câmera não conseguiu iniciar o vídeo (o navegador bloqueou o autoplay).";
+                    });
                     scanLoopId = requestAnimationFrame(scanQRLoop);
                 })
-                .catch(() => { status.textContent = "Não foi possível acessar a câmera."; });
+                .catch((err) => {
+                    status.textContent = "Não foi possível acessar a câmera" + (err && err.name ? " (" + err.name + ")" : "") + ".";
+                });
         }
 
         function scanQRLoop() {
@@ -967,7 +1020,10 @@ loadHomeCards();
         }
 
         function captureText() {
-            if (!video.videoWidth) return;
+            if (!video.videoWidth) {
+                status.textContent = "A câmera ainda está carregando — espera um instante e tenta de novo.";
+                return;
+            }
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
