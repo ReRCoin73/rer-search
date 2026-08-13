@@ -771,11 +771,16 @@
                     const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
                     if (!el || !priceData[id]) continue;
                     let prices = [];
-                    await new Promise(r => setTimeout(r, 400));
-                    try {
-                        const chartData = await fetchWithRetry('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=1');
-                        prices = (chartData.prices || []).map(p => p[1]);
-                    } catch (err) { /* segue sem sparkline */ }
+await new Promise(r => setTimeout(r, 400));
+try {
+    if (id === 'polygon-ecosystem-token') {
+        const klines = await fetchWithRetry('https://api.binance.com/api/v3/klines?symbol=POLUSDT&interval=4h&limit=42');
+        prices = klines.map(k => parseFloat(k[4]));
+    } else {
+        const chartData = await fetchWithRetry('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=7');
+        prices = (chartData.prices || []).map(p => p[1]);
+    }
+} catch (err) { /* segue sem sparkline */ }
                     fillCoinCard(el, {
                         price: priceData[id].usd,
                         changePct: priceData[id].usd_24h_change || 0,
