@@ -319,7 +319,7 @@
             </div>
             <button type="button" class="swap-btn" id="swapBtn" title="Trocar de lugar">⇅</button>
             <div class="converter-row">
-                <input type="number" id="convAmountTo" class="converter-amount" readonly>
+                <input type="text" id="convAmountTo" class="converter-amount" readonly>
                 <select id="convTo" class="converter-select"></select>
             </div>
             <div class="converter-note" id="convNote">Cotações de mercado, apenas referência.</div>
@@ -347,23 +347,8 @@
         // =====================================================================
         // Serper.dev (busca ampla no Google, filtrada em sites de mercado/cripto): serper.dev -> conta grátis -> API key.
         const SERPER_API_KEY = "32ae43fa233c01d6867bd876d2cb83d9661397d4"; // <-- cole aqui a chave da Serper.dev
-        // Domínios liberados pra busca ampla — reduzido de propósito: cada fonte genérica
-        // (github, reddit, blog de corretora) vinha trazendo conteúdo aleatório sem relação
-        // real com o termo buscado (blog da Binance em vietnamita, post do Reddit sem nexo).
-        // Fica só o que é inerentemente sobre mercado/cripto.
-        const SERPER_INCLUDE_DOMAINS = [
-            "polygonscan.com", "etherscan.io", "bscscan.com", "solscan.io", "tronscan.org",
-            "coingecko.com", "coinmarketcap.com", "dexscreener.com", "geckoterminal.com",
-            "cointelegraph.com", "investing.com"
-        ];
-
-        // Palavras que precisam aparecer no conteúdo pra considerar o resultado
-        // realmente sobre mercado/cripto (evita homônimo tipo empresa Bloomberg "RERC").
-        const CONTEXT_KEYWORDS = [
-            "crypto", "criptomoeda", "token", "coin", "blockchain", "cripto",
-            "polygon", "ethereum", "solana", "wallet", "carteira", "dex", "exchange",
-            "corretora", "trading", "preco", "preço", "cotacao", "cotação", "mercado"
-        ];
+        const resultsContainer = document.getElementById('resultsContainer');
+        const homeWidgets = document.getElementById('homeWidgets');
 
         // Sites oficiais conhecidos — atalho garantido, mostrado sempre em primeiro lugar
         // quando o termo bate exato, sem depender da ordenação do motor de busca.
@@ -395,9 +380,6 @@
             tron: 'https://trondao.org'
         };
 
-        const resultsContainer = document.getElementById('resultsContainer');
-        const homeWidgets = document.getElementById('homeWidgets');
-
         function escapeHtml(str) {
             return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
@@ -406,10 +388,10 @@
         }
 
         // =====================================================================
-        // Busca ampla (Serper.dev / Google) — site oficial, GitHub, Reddit, explorer, docs, imprensa séria...
-        // restrita à lista de domínios de mercado/cripto em SERPER_INCLUDE_DOMAINS.
-        // Filtro de correspondência exata: só mantém resultado se o termo buscado
-        // aparece de verdade no título/conteúdo (evita trazer ativo diferente por engano).
+        // Busca ampla (Serper.dev / Google) — a busca vai direto pro motor, sem lista de
+        // domínio nem filtro de palavra-chave por cima (isso vinha travando pergunta em
+        // linguagem natural tipo "melhor token para investir"). Só a apresentação visual
+        // (ícone, título, descrição) é nossa; o que aparece é o que o motor manda.
         // =====================================================================
         function favicon(url, size) {
             try {
@@ -423,32 +405,20 @@
         async function fetchWebResults(query) {
             if (!SERPER_API_KEY) return [];
             try {
-                // Serper não tem "include_domains" nativo — simula com operador site: (OR) na própria query.
-                const siteFilter = '(' + SERPER_INCLUDE_DOMAINS.map(d => 'site:' + d).join(' OR ') + ')';
                 const res = await fetch('https://google.serper.dev/search', {
                     method: 'POST',
                     headers: {
                         'X-API-KEY': SERPER_API_KEY,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        q: '"' + query + '" ' + siteFilter,
-                        num: 10
-                    })
+                    body: JSON.stringify({ q: query, num: 10 })
                 });
                 const data = await res.json();
-                // Normaliza o retorno orgânico do Google (Serper) pro formato usado no render: {url, title, content}
-                const results = (data.organic || []).map(item => ({
+                return (data.organic || []).map(item => ({
                     url: item.link,
                     title: item.title,
                     content: item.snippet || ''
                 }));
-                const qNorm = normalize(query);
-                return results.filter(r => {
-                    const haystack = normalize((r.title || '') + ' ' + (r.content || ''));
-                    if (!haystack.includes(qNorm)) return false;
-                    return CONTEXT_KEYWORDS.some(k => haystack.includes(k));
-                });
             } catch (err) {
                 return [];
             }
@@ -1118,22 +1088,19 @@
             if (!file) return;
             status.textContent = "Carregando imagem...";
             const img = new Image();
-            const reader = new FileReader();
 
             const safetyTimeout = setTimeout(() => {
                 status.textContent = "Essa imagem demorou demais pra abrir. Tenta uma foto menor ou tira uma nova.";
             }, 12000);
 
-            reader.onerror = () => {
-                clearTimeout(safetyTimeout);
-                status.textContent = "Não consegui ler esse arquivo. Tenta outra imagem.";
-            };
             img.onerror = () => {
                 clearTimeout(safetyTimeout);
                 status.textContent = "Essa imagem não abriu. Tenta outra.";
+                URL.revokeObjectURL(objectUrl);
             };
             img.onload = () => {
                 clearTimeout(safetyTimeout);
+                URL.revokeObjectURL(objectUrl); // já carregou, não precisa mais guardar
                 // Fotos de celular vêm em resolução muito alta (4000px+) — desenhar isso
                 // direto no canvas trava navegador mais fraco. Já limita aqui.
                 const MAX_DRAW_WIDTH = 1600;
@@ -1143,8 +1110,10 @@
                 canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
                 tryQrThenOcr(canvas);
             };
-            reader.onload = (ev) => { img.src = ev.target.result; };
-            reader.readAsDataURL(file);
+            // URL de objeto direta é bem mais leve que converter a foto inteira pra texto
+            // base64 primeiro (FileReader) — isso era o provável motivo de travar em foto grande.
+            const objectUrl = URL.createObjectURL(file);
+            img.src = objectUrl;
             e.target.value = ''; // permite escolher a mesma imagem de novo depois
         });
     </script>
