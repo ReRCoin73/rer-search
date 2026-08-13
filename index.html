@@ -829,9 +829,12 @@
             const el = document.querySelector('.coin-card[data-coin="rerc"]');
             if (!el) return;
             try {
-                const poolData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/' + RERC_NETWORK + '/pools/' + RERC_POOL_ADDRESS);
-                const attrs = poolData.data?.attributes;
-                if (!attrs) throw new Error('sem dados do pool');
+                // Preço/variação: DexScreener, direto pelo endereço do par (confiável — a
+                // leitura de preço da GeckoTerminal pra esse pool específico vinha zerada).
+                const dexData = await fetchWithRetry('https://api.dexscreener.com/latest/dex/pairs/polygon/' + RERC_POOL_ADDRESS);
+                const pair = (dexData.pairs && dexData.pairs[0]) || dexData.pair;
+                if (!pair || !pair.priceUsd) throw new Error('sem preço do par');
+                // Gráfico: GeckoTerminal (essa parte já vinha funcionando)
                 let sparkPrices = [];
                 try {
                     const ohlcvData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/' + RERC_NETWORK + '/pools/' + RERC_POOL_ADDRESS + '/ohlcv/hour?limit=24');
@@ -839,8 +842,8 @@
                     sparkPrices = list.map(row => row[4]).reverse(); // close price, ordem cronológica
                 } catch (err) { /* sem sparkline, segue só com o preço */ }
                 fillCoinCard(el, {
-                    price: parseFloat(attrs.base_token_price_usd),
-                    changePct: parseFloat(attrs.price_change_percentage?.h24) || 0,
+                    price: parseFloat(pair.priceUsd),
+                    changePct: pair.priceChange?.h24 || 0,
                     sparkPrices: sparkPrices,
                     currency: '$'
                 });
@@ -919,6 +922,10 @@
             const crypto = cryptoList.find(c => c.id === code);
             if (crypto) return crypto.current_price;
             if (code === 'USD') return 1;
+            // Se o câmbio não carregou na primeira vez (falha silenciosa), tenta de novo agora.
+            if (!fiatRatesFromUsd || Object.keys(fiatRatesFromUsd).length === 0) {
+                await loadFiatRates();
+            }
             if (fiatRatesFromUsd && typeof fiatRatesFromUsd[code] === 'number') {
                 return 1 / fiatRatesFromUsd[code];
             }
@@ -1112,13 +1119,31 @@
             status.textContent = "Carregando imagem...";
             const img = new Image();
             const reader = new FileReader();
-            reader.onload = (ev) => { img.src = ev.target.result; };
+
+            const safetyTimeout = setTimeout(() => {
+                status.textContent = "Essa imagem demorou demais pra abrir. Tenta uma foto menor ou tira uma nova.";
+            }, 12000);
+
+            reader.onerror = () => {
+                clearTimeout(safetyTimeout);
+                status.textContent = "Não consegui ler esse arquivo. Tenta outra imagem.";
+            };
+            img.onerror = () => {
+                clearTimeout(safetyTimeout);
+                status.textContent = "Essa imagem não abriu. Tenta outra.";
+            };
             img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                canvas.getContext('2d').drawImage(img, 0, 0);
+                clearTimeout(safetyTimeout);
+                // Fotos de celular vêm em resolução muito alta (4000px+) — desenhar isso
+                // direto no canvas trava navegador mais fraco. Já limita aqui.
+                const MAX_DRAW_WIDTH = 1600;
+                const scale = img.width > MAX_DRAW_WIDTH ? MAX_DRAW_WIDTH / img.width : 1;
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
                 tryQrThenOcr(canvas);
             };
+            reader.onload = (ev) => { img.src = ev.target.result; };
             reader.readAsDataURL(file);
             e.target.value = ''; // permite escolher a mesma imagem de novo depois
         });
