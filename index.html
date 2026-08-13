@@ -771,6 +771,7 @@
                     const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
                     if (!el || !priceData[id]) continue;
                     let prices = [];
+                    await new Promise(r => setTimeout(r, 400));
                     try {
                         const chartData = await fetchWithRetry('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=1');
                         prices = (chartData.prices || []).map(p => p[1]);
