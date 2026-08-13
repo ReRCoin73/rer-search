@@ -306,7 +306,7 @@
     <div class="home-widgets" id="homeWidgets">
         <div class="coin-row" id="coinRow">
             <div class="coin-card" data-coin="bitcoin"><div class="coin-ticker">BTC</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
-            <div class="coin-card rerc-card" data-coin="rerc"><div class="coin-ticker">RERC</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
+            <div class="coin-card" data-coin="polygon-ecosystem-token">
             <div class="coin-card" data-coin="solana"><div class="coin-ticker">SOL</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
             <div class="coin-card" data-coin="ethereum"><div class="coin-ticker">ETH</div><div class="coin-price">--</div><div class="coin-change">--</div><svg class="coin-spark"></svg></div>
         </div>
@@ -790,42 +790,8 @@
             }
         }
 
-        // Pool confirmado do RERC/WPOL na Polygon — endereço fixo em vez de busca dinâmica
-        // (a busca por nome vinha achando leitura errada/zerada com frequência).
-        const RERC_POOL_ADDRESS = '0x0000000000000000000000000000000000001010';
-        const RERC_NETWORK = 'polygon_pos';
-
-        async function loadRercCard() {
-            const el = document.querySelector('.coin-card[data-coin="rerc"]');
-            if (!el) return;
-            try {
-                // Preço/variação: DexScreener, direto pelo endereço do par (confiável — a
-                // leitura de preço da GeckoTerminal pra esse pool específico vinha zerada).
-                const dexData = await fetchWithRetry('https://api.dexscreener.com/latest/dex/pairs/polygon/' + RERC_POOL_ADDRESS);
-                const pair = (dexData.pairs && dexData.pairs[0]) || dexData.pair;
-                if (!pair || !pair.priceUsd) throw new Error('sem preço do par');
-                // Gráfico: GeckoTerminal (essa parte já vinha funcionando)
-                let sparkPrices = [];
-                try {
-                    const ohlcvData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/' + RERC_NETWORK + '/pools/' + RERC_POOL_ADDRESS + '/ohlcv/hour?limit=24');
-                    const list = ohlcvData.data?.attributes?.ohlcv_list || [];
-                    sparkPrices = list.map(row => row[4]).reverse(); // close price, ordem cronológica
-                } catch (err) { /* sem sparkline, segue só com o preço */ }
-                fillCoinCard(el, {
-                    price: parseFloat(pair.priceUsd),
-                    changePct: pair.priceChange?.h24 || 0,
-                    sparkPrices: sparkPrices,
-                    currency: '$'
-                });
-            } catch (err) {
-                el.querySelector('.coin-price').textContent = 'indisponível';
-            }
-        }
-
         function loadHomeCards() {
-            loadAllCoinGeckoCards(['bitcoin', 'solana', 'ethereum']);
-            loadRercCard();
-        }
+    loadAllCoinGeckoCards(['bitcoin', 'solana', 'ethereum', 'polygon-ecosystem-token']);
         loadHomeCards();
 
         // =====================================================================
