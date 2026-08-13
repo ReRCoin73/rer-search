@@ -40,7 +40,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-top: 10vh;
+            margin-top: 4vh;
             margin-bottom: 4px;
         }
         .brand-title {
@@ -72,7 +72,7 @@
         @media (max-width: 480px) {
             .search-box { max-width: 92vw; border-radius: 24px; }
             .search-input { padding: 12px 16px; font-size: 1rem; }
-            .header-container { margin-top: 7vh; }
+            .header-container { margin-top: 3vh; }
             .brand-title { font-size: 2.5rem; }
         }
 
@@ -197,27 +197,25 @@
         @media (max-width: 480px) { .results-container { max-width: 92vw; } }
 
         .result-link {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 12px 4px;
-            margin-bottom: 20px;
+            display: block;
+            padding: 14px 4px;
+            margin-bottom: 22px;
             text-decoration: none;
             color: inherit;
         }
-        .result-favicon { width: 20px; height: 20px; border-radius: 4px; margin-top: 3px; flex-shrink: 0; }
-        .result-info { min-width: 0; flex: 1; }
+        .result-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .result-favicon { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; }
+        .result-url { font-size: 0.85rem; opacity: 0.65; word-break: break-all; }
         .result-name {
-            font-weight: bold; font-size: 1.15rem; color: var(--accent-color);
-            display: block;
+            font-weight: bold; font-size: 1.2rem; color: var(--accent-color);
+            display: block; line-height: 1.3;
         }
         .result-link:hover .result-name { text-decoration: underline; }
         .result-name .badge-new {
             font-size: 0.6rem; color: var(--bg-color); background: var(--accent-color);
             border-radius: 8px; padding: 2px 7px; margin-left: 8px; vertical-align: middle;
         }
-        .result-url { font-size: 0.8rem; opacity: 0.7; word-break: break-all; margin-top: 1px; }
-        .result-desc { font-size: 0.9rem; opacity: 0.85; margin-top: 4px; }
+        .result-desc { font-size: 0.92rem; opacity: 0.85; margin-top: 5px; line-height: 1.45; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
 
         /* Dropdown de autocomplete (estilo Google) */
@@ -465,12 +463,12 @@
             const domain = (() => { try { return new URL(r.url).hostname; } catch (e) { return r.url; } })();
             const icon = favicon(r.url);
             link.innerHTML =
-                (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
-                '<div class="result-info">' +
-                    '<span class="result-name">' + escapeHtml(r.title || domain) + '</span>' +
-                    '<div class="result-url">' + escapeHtml(domain) + '</div>' +
-                    '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + (r.content && r.content.length > 160 ? '…' : '') + '</div>' +
-                '</div>';
+                '<div class="result-top">' +
+                    (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
+                    '<span class="result-url">' + escapeHtml(domain) + '</span>' +
+                '</div>' +
+                '<span class="result-name">' + escapeHtml(r.title || domain) + '</span>' +
+                '<div class="result-desc">' + escapeHtml((r.content || '').slice(0, 160)) + (r.content && r.content.length > 160 ? '…' : '') + '</div>';
             resultsContainer.appendChild(link);
         }
 
@@ -504,48 +502,6 @@
             }
         }
 
-        async function fetchGeckoTerminalPools(qLower, query) {
-            try {
-                const res = await fetch("https://api.geckoterminal.com/api/v2/search/pools?query=" + encodeURIComponent(query) + "&include=base_token,dex,network&page=1");
-                const data = await res.json();
-                const byId = {};
-                (data.included || []).forEach(item => { byId[item.type + ':' + item.id] = item; });
-                const matches = [];
-                (data.data || []).forEach(pool => {
-                    const rel = pool.relationships || {};
-                    const tokenRef = rel.base_token && rel.base_token.data;
-                    const dexRef = rel.dex && rel.dex.data;
-                    const netRef = rel.network && rel.network.data;
-                    const token = tokenRef ? byId['token:' + tokenRef.id] : null;
-                    if (!token || !token.attributes) return;
-                    const tName = (token.attributes.name || '').toLowerCase();
-                    const tSymbol = (token.attributes.symbol || '').toLowerCase();
-                    const tAddress = (token.attributes.address || '').toLowerCase();
-                    if (tName !== qLower && tSymbol !== qLower && tAddress !== qLower) return;
-                    const dex = dexRef ? byId['dex:' + dexRef.id] : null;
-                    const network = netRef ? netRef.id : '';
-                    const dexName = dex && dex.attributes ? dex.attributes.name : '';
-                    matches.push({
-                        baseToken: {
-                            name: token.attributes.name,
-                            symbol: token.attributes.symbol,
-                            address: token.attributes.address
-                        },
-                        chainId: network + (dexName ? ' (' + dexName + ')' : ''),
-                        priceUsd: pool.attributes.base_token_price_usd,
-                        liquidity: { usd: parseFloat(pool.attributes.reserve_in_usd) || 0 },
-                        url: 'https://www.geckoterminal.com/' + network + '/pools/' + pool.attributes.address,
-                        pairCreatedAt: pool.attributes.pool_created_at ? new Date(pool.attributes.pool_created_at).getTime() : null,
-                        info: (token.attributes.image_url && token.attributes.image_url.indexOf('missing') === -1) ? { imageUrl: token.attributes.image_url } : {},
-                        source: 'geckoterminal'
-                    });
-                });
-                return matches;
-            } catch (err) {
-                return [];
-            }
-        }
-
         async function fetchCoinGeckoTokens(qLower, query) {
             try {
                 const res = await fetch("https://api.coingecko.com/api/v3/search?query=" + encodeURIComponent(query));
@@ -571,41 +527,13 @@
             }
         }
 
-        async function fetchBinanceTokens(qLower, query) {
-            // Só tenta símbolos plausíveis (sem espaço, curto) pra não gastar chamada à toa
-            if (!/^[a-z0-9]{2,10}$/i.test(query.trim())) return [];
-            const base = query.trim().toUpperCase();
-            const quoteAssets = ['USDT', 'USD', 'BUSD'];
-            for (const quote of quoteAssets) {
-                const symbol = base + quote;
-                try {
-                    const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=' + symbol);
-                    if (!res.ok) continue;
-                    const d = await res.json();
-                    if (!d || !d.lastPrice) continue;
-                    return [{
-                        baseToken: { name: base, symbol: base, address: symbol },
-                        chainId: 'Binance',
-                        priceUsd: parseFloat(d.lastPrice),
-                        liquidity: { usd: parseFloat(d.quoteVolume) || 0 },
-                        url: 'https://www.binance.com/en/trade/' + symbol,
-                        info: {},
-                        source: 'binance'
-                    }];
-                } catch (err) { /* tenta o próximo par de cotação */ }
-            }
-            return [];
-        }
-
         async function fetchTokenResults(query) {
             const qLower = query.toLowerCase().trim();
-            const [dex, gt, cg, bn] = await Promise.all([
+            const [dex, cg] = await Promise.all([
                 fetchDexScreenerTokens(qLower, query),
-                fetchGeckoTerminalPools(qLower, query),
-                fetchCoinGeckoTokens(qLower, query),
-                fetchBinanceTokens(qLower, query)
+                fetchCoinGeckoTokens(qLower, query)
             ]);
-            const all = [].concat(dex, gt, cg, bn);
+            const all = [].concat(dex, cg);
             // Agrupa pelo MESMO token (endereço + rede), não pela fonte — evita mostrar o
             // mesmo token duas vezes quando duas fontes indexam o mesmo par, e fica com a
             // leitura mais confiável (maior liquidez) entre elas.
@@ -645,11 +573,11 @@
                 const domain = (() => { try { return new URL(officialSite).hostname; } catch (e) { return officialSite; } })();
                 const icon = favicon(officialSite);
                 siteLink.innerHTML =
-                    (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
-                    '<div class="result-info">' +
-                        '<span class="result-name">Site oficial — ' + escapeHtml(p.baseToken.name) + '</span>' +
-                        '<div class="result-url">' + escapeHtml(domain) + '</div>' +
-                    '</div>';
+                    '<div class="result-top">' +
+                        (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
+                        '<span class="result-url">' + escapeHtml(domain) + '</span>' +
+                    '</div>' +
+                    '<span class="result-name">Site oficial — ' + escapeHtml(p.baseToken.name) + '</span>';
                 resultsContainer.appendChild(siteLink);
             }
 
@@ -663,12 +591,12 @@
             link.rel = 'noopener noreferrer';
             const tokenIcon = (p.info && p.info.imageUrl) ? p.info.imageUrl : favicon('https://dexscreener.com');
             link.innerHTML =
-                '<img src="' + tokenIcon + '" class="result-favicon" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
-                '<div class="result-info">' +
-                    '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</span>' +
-                    '<div class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</div>' +
-                    '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>' +
-                '</div>';
+                '<div class="result-top">' +
+                    '<img src="' + tokenIcon + '" class="result-favicon" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+                    '<span class="result-url">' + escapeHtml(p.chainId) + ' · ' + escapeHtml(p.baseToken.address) + '</span>' +
+                '</div>' +
+                '<span class="result-name">' + escapeHtml(p.baseToken.name) + ' (' + escapeHtml(p.baseToken.symbol) + ')' + (isNew ? '<span class="badge-new">NOVO</span>' : '') + '</span>' +
+                '<div class="result-desc">' + [priceUsd, liquidity].filter(Boolean).join(' · ') + '</div>';
             resultsContainer.appendChild(link);
         }
 
@@ -694,13 +622,50 @@
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             link.innerHTML =
-                (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
-                '<div class="result-info">' +
-                    '<span class="result-name">Site oficial — ' + escapeHtml(query) + '</span>' +
-                    '<div class="result-url">' + escapeHtml(domain) + '</div>' +
-                '</div>';
+                '<div class="result-top">' +
+                    (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
+                    '<span class="result-url">' + escapeHtml(domain) + '</span>' +
+                '</div>' +
+                '<span class="result-name">Site oficial — ' + escapeHtml(query) + '</span>';
             resultsContainer.appendChild(link);
             return true;
+        }
+
+        // =====================================================================
+        // Correção de digitação — "você quis dizer X?" estilo Google, pra erros de
+        // digitação tipo "Gekoterminal" -> "geckoterminal", "Coingeko" -> "coingecko".
+        // =====================================================================
+        function levenshtein(a, b) {
+            const m = a.length, n = b.length;
+            const d = Array.from({ length: m + 1 }, (_, i) => [i].concat(new Array(n).fill(0)));
+            for (let j = 0; j <= n; j++) d[0][j] = j;
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    d[i][j] = Math.min(
+                        d[i - 1][j] + 1,
+                        d[i][j - 1] + 1,
+                        d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+                    );
+                }
+            }
+            return d[m][n];
+        }
+
+        function correctQuery(q) {
+            const qNorm = normalize(q);
+            if (CURATED_OFFICIAL_SITES[qNorm]) return q; // já bate exato, não mexe
+            const dictionary = Object.keys(CURATED_OFFICIAL_SITES).concat(
+                cryptoList.flatMap(c => [c.name, c.symbol])
+            );
+            let best = null, bestDist = Infinity;
+            dictionary.forEach(term => {
+                const termNorm = normalize(term);
+                const dist = levenshtein(qNorm, termNorm);
+                // tolerância proporcional ao tamanho da palavra (evita corrigir palavra curta demais)
+                const tolerance = qNorm.length <= 5 ? 1 : 2;
+                if (dist <= tolerance && dist < bestDist) { best = term; bestDist = dist; }
+            });
+            return best || q;
         }
 
         async function runSearch(query) {
@@ -711,20 +676,29 @@
                 return;
             }
             const q = query.trim();
+            const corrected = correctQuery(q);
             homeWidgets.classList.add('hidden');
             resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
 
             const [tokenResults, webResults] = await Promise.all([
-                fetchTokenResults(q),
-                fetchWebResults(q)
+                fetchTokenResults(corrected),
+                fetchWebResults(corrected)
             ]);
 
             resultsContainer.innerHTML = "";
 
-            const gotOfficial = renderOfficialSite(q);
+            if (normalize(corrected) !== normalize(q)) {
+                const hint = document.createElement('div');
+                hint.className = 'no-results';
+                hint.style.textAlign = 'left';
+                hint.innerHTML = 'Mostrando resultados para <b style="color:var(--accent-color)">' + escapeHtml(corrected) + '</b>';
+                resultsContainer.appendChild(hint);
+            }
+
+            const gotOfficial = renderOfficialSite(corrected);
 
             if (!gotOfficial && tokenResults.length === 0 && webResults.length === 0) {
-                resultsContainer.innerHTML = '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
+                resultsContainer.innerHTML += '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
                 return;
             }
 
@@ -846,25 +820,27 @@
             }
         }
 
+        // Pool confirmado do RERC/WPOL na Polygon — endereço fixo em vez de busca dinâmica
+        // (a busca por nome vinha achando leitura errada/zerada com frequência).
+        const RERC_POOL_ADDRESS = '0xe958cf100112f01d1639bb786c81f6ed46d1eabb';
+        const RERC_NETWORK = 'polygon_pos';
+
         async function loadRercCard() {
             const el = document.querySelector('.coin-card[data-coin="rerc"]');
             if (!el) return;
             try {
-                const data = await fetchWithRetry('https://api.dexscreener.com/latest/dex/search?q=RERC');
-                const pairs = (data.pairs || []).filter(p => p.baseToken && p.baseToken.symbol.toUpperCase() === 'RERC' && p.chainId === 'polygon');
-                if (!pairs.length) throw new Error('sem par encontrado');
-                // pega o par de maior liquidez
-                pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
-                const pair = pairs[0];
+                const poolData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/' + RERC_NETWORK + '/pools/' + RERC_POOL_ADDRESS);
+                const attrs = poolData.data?.attributes;
+                if (!attrs) throw new Error('sem dados do pool');
                 let sparkPrices = [];
                 try {
-                    const ohlcvData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/polygon_pos/pools/' + pair.pairAddress + '/ohlcv/hour?limit=24');
+                    const ohlcvData = await fetchWithRetry('https://api.geckoterminal.com/api/v2/networks/' + RERC_NETWORK + '/pools/' + RERC_POOL_ADDRESS + '/ohlcv/hour?limit=24');
                     const list = ohlcvData.data?.attributes?.ohlcv_list || [];
                     sparkPrices = list.map(row => row[4]).reverse(); // close price, ordem cronológica
                 } catch (err) { /* sem sparkline, segue só com o preço */ }
                 fillCoinCard(el, {
-                    price: parseFloat(pair.priceUsd),
-                    changePct: pair.priceChange?.h24 || 0,
+                    price: parseFloat(attrs.base_token_price_usd),
+                    changePct: parseFloat(attrs.price_change_percentage?.h24) || 0,
                     sparkPrices: sparkPrices,
                     currency: '$'
                 });
@@ -880,8 +856,10 @@
         loadHomeCards();
 
         // =====================================================================
-        // Conversor — moedas do mundo (Frankfurter, sem chave) + principais coins/tokens + RERC
+        // Conversor — moedas do mundo via freecurrencyapi + até 250 criptomoedas reais (CoinGecko,
+        // buscadas uma vez só e guardadas na memória — não uma chamada por moeda a cada conversão)
         // =====================================================================
+        const FREECURRENCY_API_KEY = "fca_live_hHLw27ybYqTK7nnHyIzwFHwXMDNpr40haYvHEndY";
         const WORLD_CURRENCIES = {
             USD: 'Dólar americano', EUR: 'Euro', BRL: 'Real brasileiro', GBP: 'Libra esterlina',
             JPY: 'Iene japonês', CHF: 'Franco suíço', CAD: 'Dólar canadense', AUD: 'Dólar australiano',
@@ -891,10 +869,6 @@
             NZD: 'Dólar neozelandês', CZK: 'Coroa tcheca', HUF: 'Florim húngaro', ILS: 'Shekel israelense',
             THB: 'Baht tailandês', IDR: 'Rupia indonésia', PHP: 'Peso filipino', RON: 'Leu romeno'
         };
-        const CRYPTO_CONVERT = {
-            BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', USDT: 'tether', BNB: 'binancecoin',
-            XRP: 'ripple', ADA: 'cardano', DOGE: 'dogecoin', TRX: 'tron'
-        };
 
         const convFrom = document.getElementById('convFrom');
         const convTo = document.getElementById('convTo');
@@ -902,39 +876,53 @@
         const convAmountTo = document.getElementById('convAmountTo');
         const convNote = document.getElementById('convNote');
 
+        let cryptoList = [];       // [{id, symbol, name, current_price}, ...] até 250 moedas
+        let fiatRatesFromUsd = null; // {EUR: 0.92, BRL: 5.4, ...} — 1 chamada só, reaproveitada
+
+        async function loadCryptoList() {
+            try {
+                const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false');
+                cryptoList = await res.json();
+            } catch (err) { cryptoList = []; }
+        }
+
+        async function loadFiatRates() {
+            try {
+                const res = await fetch('https://api.freecurrencyapi.com/v1/latest?apikey=' + FREECURRENCY_API_KEY);
+                const data = await res.json();
+                fiatRatesFromUsd = data.data || {};
+            } catch (err) { fiatRatesFromUsd = {}; }
+        }
+
         function buildConverterOptions() {
             let html = '<optgroup label="Moedas">';
             Object.keys(WORLD_CURRENCIES).forEach(code => { html += '<option value="' + code + '">' + code + '</option>'; });
             html += '</optgroup><optgroup label="Cripto">';
-            Object.keys(CRYPTO_CONVERT).forEach(code => { html += '<option value="' + code + '">' + code + '</option>'; });
+            cryptoList.forEach(c => {
+                html += '<option value="' + c.id + '">' + c.symbol.toUpperCase() + ' — ' + escapeHtml(c.name) + '</option>';
+            });
             html += '</optgroup>';
             convFrom.innerHTML = html;
             convTo.innerHTML = html;
             convFrom.value = 'USD';
             convTo.value = 'BRL';
         }
-        buildConverterOptions();
+
+        async function initConverter() {
+            await Promise.all([loadCryptoList(), loadFiatRates()]);
+            buildConverterOptions();
+            runConversion();
+        }
+        initConverter();
 
         async function getUsdValueOf(code) {
-            if (CRYPTO_CONVERT[code]) {
-                const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + CRYPTO_CONVERT[code] + '&vs_currencies=usd');
-                const data = await res.json();
-                return data[CRYPTO_CONVERT[code]].usd;
-            }
+            const crypto = cryptoList.find(c => c.id === code);
+            if (crypto) return crypto.current_price;
             if (code === 'USD') return 1;
-            // moeda fiat: quantos USD vale 1 unidade dessa moeda
-            try {
-                const res = await fetch('https://api.frankfurter.dev/v2/rate/' + code + '/USD');
-                if (!res.ok) throw new Error('v2 falhou');
-                const data = await res.json();
-                if (typeof data.rate !== 'number') throw new Error('v2 sem rate');
-                return data.rate;
-            } catch (err) {
-                // Fallback: endpoint v1 (mais antigo, mas ainda no ar)
-                const res = await fetch('https://api.frankfurter.dev/v1/latest?from=' + code + '&to=USD');
-                const data = await res.json();
-                return data.rates.USD;
+            if (fiatRatesFromUsd && typeof fiatRatesFromUsd[code] === 'number') {
+                return 1 / fiatRatesFromUsd[code];
             }
+            throw new Error('moeda indisponível: ' + code);
         }
 
         document.getElementById('swapBtn').addEventListener('click', () => {
@@ -960,7 +948,6 @@
         convFrom.addEventListener('change', runConversion);
         convTo.addEventListener('change', runConversion);
         convAmountFrom.addEventListener('input', runConversion);
-        runConversion();
 
         // =====================================================================
         // Voz
@@ -1066,11 +1053,13 @@
             box.className = 'no-results';
             box.style.textAlign = 'left';
             box.innerHTML =
-                '<div style="margin-bottom:10px;">Texto reconhecido: "' + escapeHtml(text) + '"</div>' +
-                '<button class="scanner-btn" id="copyRecognizedBtn">Copiar texto</button> ' +
+                '<div style="margin-bottom:8px; opacity:0.7;">Texto reconhecido — toque e segure pra selecionar um pedaço:</div>' +
+                '<textarea id="recognizedTextArea" readonly style="width:100%; min-height:90px; background:rgba(255,255,255,0.03); color:var(--text-color); border:1px solid var(--border-color); border-radius:10px; padding:10px; font-family:inherit; font-size:0.95rem; margin-bottom:10px;"></textarea>' +
+                '<button class="scanner-btn" id="copyRecognizedBtn">Copiar tudo</button> ' +
                 '<button class="scanner-btn" id="searchRecognizedBtn">Buscar</button>';
             resultsContainer.innerHTML = "";
             resultsContainer.appendChild(box);
+            document.getElementById('recognizedTextArea').value = text;
             document.getElementById('copyRecognizedBtn').onclick = () => {
                 navigator.clipboard.writeText(text).then(() => {
                     document.getElementById('copyRecognizedBtn').textContent = 'Copiado!';
