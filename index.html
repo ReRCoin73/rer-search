@@ -218,6 +218,17 @@
         .result-desc { font-size: 0.92rem; opacity: 0.85; margin-top: 5px; line-height: 1.45; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
 
+        .answer-box {
+            border: 1.5px solid var(--accent-color);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 24px;
+            background: rgba(212,175,55,0.06);
+        }
+        .answer-box-label { font-size: 0.78rem; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .answer-box-text { font-size: 1.05rem; line-height: 1.5; }
+        .answer-box-source { font-size: 0.8rem; opacity: 0.6; margin-top: 8px; }
+
         /* Dropdown de autocomplete (estilo Google) */
         .search-wrap { position: relative; width: 100%; max-width: 600px; }
         @media (min-width: 900px) { .search-wrap { max-width: 720px; } }
@@ -406,8 +417,8 @@
             }
         }
 
-        async function fetchWebResults(query) {
-            if (!SERPER_API_KEY) return [];
+        async function fetchWebResults(query, page) {
+            if (!SERPER_API_KEY) return { results: [], answerBox: null };
             try {
                 const res = await fetch('https://google.serper.dev/search', {
                     method: 'POST',
@@ -415,16 +426,17 @@
                         'X-API-KEY': SERPER_API_KEY,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ q: query, num: 10 })
+                    body: JSON.stringify({ q: query, num: 10, page: page || 1 })
                 });
                 const data = await res.json();
-                return (data.organic || []).map(item => ({
+                const results = (data.organic || []).map(item => ({
                     url: item.link,
                     title: item.title,
                     content: item.snippet || ''
                 }));
+                return { results, answerBox: data.answerBox || null };
             } catch (err) {
-                return [];
+                return { results: [], answerBox: null };
             }
         }
 
@@ -460,8 +472,7 @@
         // =====================================================================
         async function fetchDexScreenerTokens(qLower, query) {
             try {
-                const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(query));
-                const data = await res.json();
+                const data = await fetchWithRetry("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(query));
                 const pairs = data.pairs || [];
                 const matches = pairs.filter(p =>
                     p.baseToken && (
@@ -478,15 +489,13 @@
 
         async function fetchCoinGeckoTokens(qLower, query) {
             try {
-                const res = await fetch("https://api.coingecko.com/api/v3/search?query=" + encodeURIComponent(query));
-                const data = await res.json();
+                const data = await fetchWithRetry("https://api.coingecko.com/api/v3/search?query=" + encodeURIComponent(query));
                 const coins = (data.coins || []).filter(c =>
                     c.symbol.toLowerCase() === qLower || c.name.toLowerCase() === qLower
                 ).slice(0, 3);
                 if (!coins.length) return [];
                 const ids = coins.map(c => c.id).join(',');
-                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + ids + "&vs_currencies=usd&include_24hr_vol=true&include_market_cap=true");
-                const priceData = await priceRes.json();
+                const priceData = await fetchWithRetry("https://api.coingecko.com/api/v3/simple/price?ids=" + ids + "&vs_currencies=usd&include_24hr_vol=true&include_market_cap=true");
                 return coins.filter(c => priceData[c.id]).map(c => ({
                     baseToken: { name: c.name, symbol: c.symbol.toUpperCase(), address: c.id },
                     chainId: 'CoinGecko',
@@ -668,6 +677,50 @@
             return best || q;
         }
 
+        let currentSearchQuery = "";
+        let currentSearchPage = 1;
+
+        function renderAnswerBox(box) {
+            if (!box) return;
+            const div = document.createElement('div');
+            div.className = 'answer-box';
+            const text = box.answer || box.snippet || '';
+            if (!text) return;
+            div.innerHTML =
+                '<div class="answer-box-label">Resposta rápida</div>' +
+                '<div class="answer-box-text">' + escapeHtml(text) + '</div>' +
+                (box.title ? '<div class="answer-box-source">' + escapeHtml(box.title) + '</div>' : '');
+            resultsContainer.appendChild(div);
+        }
+
+        function renderLoadMoreButton() {
+            const old = document.getElementById('loadMoreBtn');
+            if (old) old.remove();
+            const btn = document.createElement('button');
+            btn.id = 'loadMoreBtn';
+            btn.className = 'scanner-btn';
+            btn.style.display = 'block';
+            btn.style.margin = '10px auto 30px';
+            btn.textContent = 'Carregar mais resultados';
+            btn.onclick = async () => {
+                btn.textContent = 'Carregando...';
+                btn.disabled = true;
+                currentSearchPage += 1;
+                const { results } = await fetchWebResults(currentSearchQuery, currentSearchPage);
+                btn.remove();
+                if (results.length === 0) {
+                    const end = document.createElement('div');
+                    end.className = 'no-results';
+                    end.textContent = 'Não há mais resultados.';
+                    resultsContainer.appendChild(end);
+                    return;
+                }
+                results.forEach(renderWebResult);
+                renderLoadMoreButton();
+            };
+            resultsContainer.appendChild(btn);
+        }
+
         async function runSearch(query) {
             hideAutocomplete();
             if (!query || !query.trim()) {
@@ -677,13 +730,16 @@
             }
             const q = query.trim();
             const corrected = correctQuery(q);
+            currentSearchQuery = corrected;
+            currentSearchPage = 1;
             homeWidgets.classList.add('hidden');
             resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
 
-            const [tokenResults, webResults] = await Promise.all([
+            const [tokenResults, webData] = await Promise.all([
                 fetchTokenResults(corrected),
-                fetchWebResults(corrected)
+                fetchWebResults(corrected, 1)
             ]);
+            const webResults = webData.results;
 
             resultsContainer.innerHTML = "";
 
@@ -702,6 +758,7 @@
                 return;
             }
 
+            renderAnswerBox(webData.answerBox);
             tokenResults.forEach(renderTokenResult);
             webResults.forEach(renderWebResult);
 
@@ -710,6 +767,8 @@
                 note.className = 'no-results';
                 note.textContent = 'Busca ampla (site oficial, GitHub, Reddit...) ainda não configurada.';
                 resultsContainer.appendChild(note);
+            } else if (webResults.length > 0) {
+                renderLoadMoreButton();
             }
         }
 
