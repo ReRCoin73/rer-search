@@ -217,6 +217,10 @@
         }
         .result-desc { font-size: 0.92rem; opacity: 0.85; margin-top: 5px; line-height: 1.45; }
         .no-results { opacity: 0.7; font-size: 0.95rem; text-align: center; }
+        .badge-official {
+            font-size: 0.68rem; color: var(--accent-color); border: 1px solid var(--accent-color);
+            border-radius: 8px; padding: 1px 7px; margin-left: 4px;
+        }
 
         .answer-box {
             border: 1.5px solid var(--accent-color);
@@ -417,6 +421,19 @@
             }
         }
 
+        // Único filtro da busca aberta: precisa ter a ver com finanças/negócios/mercado/cripto
+        // no sentido amplo. Não restringe nenhum site — qualquer domínio pode aparecer, desde
+        // que o conteúdo seja sobre esse nicho. Isso evita tanto assunto totalmente fora do
+        // tema quanto homônimo tipo "RERC" virar um centro de pesquisa de reabilitação dos EUA.
+        const FINANCE_TOPIC_KEYWORDS = [
+            "crypto", "criptomoeda", "token", "coin", "moeda", "blockchain", "cripto",
+            "wallet", "carteira", "dex", "exchange", "corretora", "trading", "invest",
+            "preco", "preço", "cotacao", "cotação", "mercado", "market", "financ",
+            "economia", "economic", "money", "dinheiro", "bank", "banco", "stock",
+            "acao", "ação", "bolsa", "negocio", "negócio", "business", "capital",
+            "fund", "fundo", "asset", "ativo", "currency", "cambio", "câmbio"
+        ];
+
         async function fetchWebResults(query, page) {
             if (!SERPER_API_KEY) return { results: [], answerBox: null };
             try {
@@ -429,11 +446,16 @@
                     body: JSON.stringify({ q: query, num: 10, page: page || 1 })
                 });
                 const data = await res.json();
-                const results = (data.organic || []).map(item => ({
-                    url: item.link,
-                    title: item.title,
-                    content: item.snippet || ''
-                }));
+                const results = (data.organic || [])
+                    .map(item => ({
+                        url: item.link,
+                        title: item.title,
+                        content: item.snippet || ''
+                    }))
+                    .filter(r => {
+                        const haystack = normalize(r.title + ' ' + r.content);
+                        return FINANCE_TOPIC_KEYWORDS.some(k => haystack.includes(k));
+                    });
                 return { results, answerBox: data.answerBox || null };
             } catch (err) {
                 return { results: [], answerBox: null };
@@ -585,8 +607,9 @@
                     '<div class="result-top">' +
                         (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
                         '<span class="result-url">' + escapeHtml(domain) + '</span>' +
+                        '<span class="badge-official">Site oficial</span>' +
                     '</div>' +
-                    '<span class="result-name">Site oficial — ' + escapeHtml(p.baseToken.name) + '</span>';
+                    '<span class="result-name">' + escapeHtml(p.baseToken.name) + '</span>';
                 resultsContainer.appendChild(siteLink);
             }
 
@@ -619,26 +642,7 @@
             hideAutocomplete();
         }
 
-        function renderOfficialSite(query) {
-            const qNorm = normalize(query);
-            const url = CURATED_OFFICIAL_SITES[qNorm];
-            if (!url) return false;
-            const domain = (() => { try { return new URL(url).hostname; } catch (e) { return url; } })();
-            const icon = favicon(url);
-            const link = document.createElement('a');
-            link.className = 'result-link';
-            link.href = url;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.innerHTML =
-                '<div class="result-top">' +
-                    (icon ? '<img src="' + icon + '" class="result-favicon" alt="" loading="lazy">' : '') +
-                    '<span class="result-url">' + escapeHtml(domain) + '</span>' +
-                '</div>' +
-                '<span class="result-name">Site oficial — ' + escapeHtml(query) + '</span>';
-            resultsContainer.appendChild(link);
-            return true;
-        }
+
 
         // =====================================================================
         // Correção de digitação — "você quis dizer X?" estilo Google, pra erros de
@@ -693,32 +697,41 @@
             resultsContainer.appendChild(div);
         }
 
-        function renderLoadMoreButton() {
-            const old = document.getElementById('loadMoreBtn');
+        function renderPageNav(highestPageSeen) {
+            const old = document.getElementById('pageNav');
             if (old) old.remove();
-            const btn = document.createElement('button');
-            btn.id = 'loadMoreBtn';
-            btn.className = 'scanner-btn';
-            btn.style.display = 'block';
-            btn.style.margin = '10px auto 30px';
-            btn.textContent = 'Carregar mais resultados';
-            btn.onclick = async () => {
-                btn.textContent = 'Carregando...';
-                btn.disabled = true;
-                currentSearchPage += 1;
-                const { results } = await fetchWebResults(currentSearchQuery, currentSearchPage);
-                btn.remove();
-                if (results.length === 0) {
-                    const end = document.createElement('div');
-                    end.className = 'no-results';
-                    end.textContent = 'Não há mais resultados.';
-                    resultsContainer.appendChild(end);
-                    return;
+            const nav = document.createElement('div');
+            nav.id = 'pageNav';
+            nav.style.cssText = 'display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:20px 0 30px;';
+            const maxPage = Math.max(highestPageSeen + 1, currentSearchPage + 1);
+            for (let p = 1; p <= maxPage; p++) {
+                const btn = document.createElement('button');
+                btn.className = 'scanner-btn';
+                btn.style.minWidth = '38px';
+                btn.textContent = String(p);
+                if (p === currentSearchPage) {
+                    btn.style.background = 'var(--accent-color)';
+                    btn.style.color = 'var(--bg-color)';
                 }
-                results.forEach(renderWebResult);
-                renderLoadMoreButton();
-            };
-            resultsContainer.appendChild(btn);
+                btn.onclick = () => goToSearchPage(p);
+                nav.appendChild(btn);
+            }
+            resultsContainer.appendChild(nav);
+        }
+
+        async function goToSearchPage(page) {
+            currentSearchPage = page;
+            resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
+            const webData = await fetchWebResults(currentSearchQuery, page);
+            resultsContainer.innerHTML = "";
+            if (webData.results.length === 0 && page > 1) {
+                resultsContainer.innerHTML = '<div class="no-results">Sem mais resultados a partir daqui.</div>';
+                renderPageNav(page - 1);
+                return;
+            }
+            webData.results.forEach(renderWebResult);
+            renderPageNav(page);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         async function runSearch(query) {
@@ -751,13 +764,12 @@
                 resultsContainer.appendChild(hint);
             }
 
-            const gotOfficial = renderOfficialSite(corrected);
-
-            if (!gotOfficial && tokenResults.length === 0 && webResults.length === 0) {
+            if (tokenResults.length === 0 && webResults.length === 0) {
                 resultsContainer.innerHTML += '<div class="no-results">Nenhum resultado exato para "' + escapeHtml(q) + '" no índice ReR.</div>';
                 return;
             }
 
+            // Resposta rápida sempre em primeiro, antes de qualquer link — depois token, depois o resto da busca aberta.
             renderAnswerBox(webData.answerBox);
             tokenResults.forEach(renderTokenResult);
             webResults.forEach(renderWebResult);
@@ -765,10 +777,10 @@
             if (!SERPER_API_KEY && tokenResults.length === 0) {
                 const note = document.createElement('div');
                 note.className = 'no-results';
-                note.textContent = 'Busca ampla (site oficial, GitHub, Reddit...) ainda não configurada.';
+                note.textContent = 'Busca ampla ainda não configurada.';
                 resultsContainer.appendChild(note);
             } else if (webResults.length > 0) {
-                renderLoadMoreButton();
+                renderPageNav(1);
             }
         }
 
@@ -867,28 +879,25 @@
 
         async function loadAllCoinGeckoCards(ids) {
             try {
-                // 1 chamada só pra preço/variação dos 3 (evita bater o limite de pedidos por segundo)
+                // 1 chamada só pra preço/variação de todas (evita bater o limite de pedidos por segundo)
                 const priceData = await fetchWithRetry('https://api.coingecko.com/api/v3/simple/price?ids=' + ids.join(',') + '&vs_currencies=usd&include_24hr_change=true');
                 for (const id of ids) {
                     const el = document.querySelector('.coin-card[data-coin="' + id + '"]');
                     if (!el || !priceData[id]) continue;
                     let prices = [];
-await new Promise(r => setTimeout(r, 400));
-try {
-    if (id === 'polygon-ecosystem-token') {
-        const klines = await fetchWithRetry('https://api.binance.com/api/v3/klines?symbol=POLUSDT&interval=4h&limit=42');
-        prices = klines.map(k => parseFloat(k[4]));
-    } else {
-        const chartData = await fetchWithRetry('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=7');
-        prices = (chartData.prices || []).map(p => p[1]);
-    }
-} catch (err) { /* segue sem sparkline */ }
+                    try {
+                        // 4 chamadas seguidas de gráfico batem fácil no limite da CoinGecko —
+                        // mais tentativas e um respiro entre cada uma reduz isso.
+                        const chartData = await fetchWithRetry('https://api.coingecko.com/api/v3/coins/' + id + '/market_chart?vs_currency=usd&days=1', 3);
+                        prices = (chartData.prices || []).map(p => p[1]);
+                    } catch (err) { /* segue sem sparkline */ }
                     fillCoinCard(el, {
                         price: priceData[id].usd,
                         changePct: priceData[id].usd_24h_change || 0,
                         sparkPrices: prices,
                         currency: 'US$ '
                     });
+                    await new Promise(r => setTimeout(r, 400)); // respiro entre moedas
                 }
             } catch (err) {
                 ids.forEach(id => {
