@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>ReR Search</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
@@ -1244,6 +1247,9 @@ loadHomeCards();
                 });
         }
 
+        let scanFrameCount = 0;
+        let lastStatusUpdate = 0;
+
         function scanQRLoop() {
             try {
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -1252,7 +1258,15 @@ loadHomeCards();
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                    scanFrameCount++;
+                    // Atualiza o texto a cada ~1s pra deixar visível que ele está mesmo
+                    // tentando ler (em vez de parecer travado quando só não achou QR ainda).
+                    const now = Date.now();
+                    if (!code && now - lastStatusUpdate > 1000) {
+                        status.textContent = "Procurando QR Code... (aponte de perto, com boa luz)";
+                        lastStatusUpdate = now;
+                    }
                     if (code && code.data) {
                         status.textContent = "QR Code detectado: " + code.data;
                         document.getElementById('searchInput').value = code.data;
@@ -1409,5 +1423,6 @@ loadHomeCards();
             e.target.value = ''; // permite escolher a mesma imagem de novo depois
         });
     </script>
+    <div style="text-align:center; opacity:0.3; font-size:0.7rem; margin-top:20px; font-family: sans-serif;">build 2026-08-16-v2</div>
 </body>
 </html>
