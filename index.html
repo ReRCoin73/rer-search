@@ -407,7 +407,7 @@
         <video id="scannerVideo" class="scanner-video" autoplay playsinline muted></video>
         <canvas id="scannerCanvas" style="display:none;"></canvas>
         <div class="scanner-status" id="scannerStatus">Aponte a câmera para um QR Code ou texto</div>
-        <input type="file" id="galleryInput" accept="image/*" style="display:none;">
+        <input type="file" id="galleryInput" accept="image/*" style="position:absolute; width:1px; height:1px; opacity:0; overflow:hidden;">
         <div class="scanner-actions">
             <button class="scanner-btn" onclick="captureText()">Capturar texto</button>
             <button class="scanner-btn" onclick="document.getElementById('galleryInput').click()" title="Escolher da galeria">🖼️ Galeria</button>
@@ -636,17 +636,11 @@
             // Descarta leitura de preço quebrado/zerado (bug comum de fonte) se houver outra opção
             const withPrice = unique.filter(p => parseFloat(p.priceUsd) > 0);
             if (withPrice.length) unique = withPrice;
-            // Ordena por liquidez/volume (mais relevante primeiro).
+            // Ordena por liquidez/volume (mais relevante primeiro) e fica só com o melhor —
+            // um resultado único de token/coin, genérico pra qualquer termo digitado,
+            // pra não poluir a busca com várias linhas repetidas do mesmo ativo.
             unique.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
-            // O filtro de liquidez mínima só entra quando há MUITOS resultados (ruído real,
-            // tipo "bitcoin" trazendo dezenas de token-ponte). Com poucos resultados — caso
-            // de um token pequeno/novo tipo RERC — mostra tudo, mesmo com liquidez baixa.
-            if (unique.length > 3) {
-                const MIN_LIQUIDITY = 20000;
-                const filtered = unique.filter(p => (p.liquidity?.usd || 0) >= MIN_LIQUIDITY);
-                return filtered.slice(0, 6);
-            }
-            return unique;
+            return unique.slice(0, 1);
         }
 
         function renderTokenResult(p) {
@@ -926,9 +920,9 @@
                 return;
             }
 
-            // Resposta rápida sempre em primeiro, antes de qualquer link — depois token, depois o resto da busca aberta.
-            renderAnswerBox(webData.answerBox);
+            // Token/coin exato sempre na primeira linha — depois a resposta rápida, depois o resto da busca aberta.
             tokenResults.forEach(renderTokenResult);
+            renderAnswerBox(webData.answerBox);
             webResults.forEach(renderWebResult);
 
             if (!SERPER_API_KEY && tokenResults.length === 0) {
@@ -1367,35 +1361,49 @@ loadHomeCards();
         }
 
         // Escolher imagem da galeria (igual ao quadradinho do Google Lens) em vez de usar a câmera ao vivo
-        document.getElementById('galleryInput').addEventListener('change', (e) => {
+        document.getElementById('galleryInput').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
             status.textContent = "Carregando imagem...";
-            const img = new Image();
 
             const safetyTimeout = setTimeout(() => {
                 status.textContent = "Essa imagem demorou demais pra abrir. Tenta uma foto menor ou tira uma nova.";
             }, 12000);
 
+            function drawAndProcess(sourceImg, srcWidth, srcHeight) {
+                clearTimeout(safetyTimeout);
+                const MAX_DRAW_WIDTH = 1600;
+                const scale = srcWidth > MAX_DRAW_WIDTH ? MAX_DRAW_WIDTH / srcWidth : 1;
+                canvas.width = Math.round(srcWidth * scale);
+                canvas.height = Math.round(srcHeight * scale);
+                canvas.getContext('2d').drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
+                tryQrThenOcr(canvas);
+            }
+
+            // Caminho principal: createImageBitmap decodifica fora da thread principal —
+            // mais rápido e confiável em celular do que <img> pra foto grande.
+            if (window.createImageBitmap) {
+                try {
+                    const bitmap = await createImageBitmap(file);
+                    drawAndProcess(bitmap, bitmap.width, bitmap.height);
+                    e.target.value = '';
+                    return;
+                } catch (err) {
+                    console.error('createImageBitmap falhou, tentando o método antigo:', err);
+                }
+            }
+
+            // Plano B: <img> + URL de objeto (funciona em navegadores mais antigos)
+            const img = new Image();
             img.onerror = () => {
                 clearTimeout(safetyTimeout);
                 status.textContent = "Essa imagem não abriu. Tenta outra.";
                 URL.revokeObjectURL(objectUrl);
             };
             img.onload = () => {
-                clearTimeout(safetyTimeout);
-                URL.revokeObjectURL(objectUrl); // já carregou, não precisa mais guardar
-                // Fotos de celular vêm em resolução muito alta (4000px+) — desenhar isso
-                // direto no canvas trava navegador mais fraco. Já limita aqui.
-                const MAX_DRAW_WIDTH = 1600;
-                const scale = img.width > MAX_DRAW_WIDTH ? MAX_DRAW_WIDTH / img.width : 1;
-                canvas.width = Math.round(img.width * scale);
-                canvas.height = Math.round(img.height * scale);
-                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                tryQrThenOcr(canvas);
+                URL.revokeObjectURL(objectUrl);
+                drawAndProcess(img, img.width, img.height);
             };
-            // URL de objeto direta é bem mais leve que converter a foto inteira pra texto
-            // base64 primeiro (FileReader) — isso era o provável motivo de travar em foto grande.
             const objectUrl = URL.createObjectURL(file);
             img.src = objectUrl;
             e.target.value = ''; // permite escolher a mesma imagem de novo depois
