@@ -233,6 +233,35 @@
         .answer-box-text { font-size: 1.05rem; line-height: 1.5; }
         .answer-box-source { font-size: 0.8rem; opacity: 0.6; margin-top: 8px; }
 
+        .ai-box {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 20px;
+            border: 1.5px solid var(--accent-color);
+            border-radius: 16px;
+            padding: 16px 18px;
+            background: linear-gradient(160deg, rgba(212,175,55,0.1), rgba(212,175,55,0.02));
+        }
+        @media (min-width: 900px) { .ai-box { max-width: 720px; } }
+        @media (max-width: 480px) { .ai-box { max-width: 92vw; } }
+        .ai-box-label { font-size: 0.78rem; opacity: 0.7; margin-bottom: 8px; }
+        .ai-box-text { font-size: 1rem; line-height: 1.55; white-space: pre-wrap; }
+        .ai-chat-log { margin-top: 10px; }
+        .ai-chat-msg { font-size: 0.92rem; line-height: 1.5; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); white-space: pre-wrap; }
+        .ai-chat-msg.user { color: var(--accent-color); font-weight: bold; }
+        .ai-chat-row { display: flex; gap: 8px; margin-top: 12px; }
+        .ai-chat-input {
+            flex: 1;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 8px 16px;
+            color: var(--text-color);
+            font-family: inherit;
+            font-size: 0.92rem;
+            outline: none;
+        }
+
         /* Dropdown de autocomplete (estilo Google) */
         .search-wrap { position: relative; width: 100%; max-width: 600px; }
         @media (min-width: 900px) { .search-wrap { max-width: 720px; } }
@@ -311,10 +340,13 @@
     <div class="search-wrap">
         <div class="search-box">
             <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar ativos, contratos ou tokens..." autocomplete="off">
+            <button class="icon-btn" id="clearBtn" onclick="clearSearchInput()" title="Limpar" style="display:none;">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
             <button class="icon-btn" id="voiceBtn" onclick="startVoice()" title="Voz">
                 <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.9.9 0 2.76-2.24 5-5 5s-5-2.24-5-5c0-.51-.4-.9-.9-.9s-.9.39-.9.9c0 3.16 2.41 5.76 5.5 6.21V21h2v-3.79c3.09-.45 5.5-3.05 5.5-6.21 0-.51-.41-.9-.9-.9z"/></svg>
             </button>
-            <button class="icon-btn" onclick="startScanner()" title="Scanner">
+            <button class="icon-btn" id="scannerBtn" onclick="startScanner()" title="Scanner">
                 <svg viewBox="0 0 24 24"><path d="M3 5v4h2V5h4V3H5a2 2 0 0 0-2 2m16-2h-4v2h4v4h2V5a2 2 0 0 0-2-2M3 19v-4h2v4h4v2H5a2 2 0 0 1-2-2m18 0a2 2 0 0 1-2 2h-4v-2h4v-4h2M7 7h10v10H7V7Z"/></svg>
             </button>
         </div>
@@ -345,6 +377,16 @@
         </div>
     </div>
 
+    <div class="ai-box" id="aiBox" style="display:none;">
+        <div class="ai-box-label">🤖 Resposta da IA — foco em mercado/cripto</div>
+        <div class="ai-box-text" id="aiBoxText"></div>
+        <div class="ai-chat-log" id="aiChatLog"></div>
+        <div class="ai-chat-row">
+            <input type="text" id="aiChatInput" class="ai-chat-input" placeholder="Perguntar mais sobre isso...">
+            <button class="scanner-btn" id="aiChatSendBtn">Enviar</button>
+        </div>
+    </div>
+
     <div class="results-container" id="resultsContainer"></div>
 
     <!-- Modal do scanner (QR code + texto), estilo Google Lens -->
@@ -366,6 +408,7 @@
         // =====================================================================
         // Serper.dev (busca ampla no Google, filtrada em sites de mercado/cripto): serper.dev -> conta grátis -> API key.
         const SERPER_API_KEY = "32ae43fa233c01d6867bd876d2cb83d9661397d4"; // <-- cole aqui a chave da Serper.dev
+        const GEMINI_API_KEY = "AQ.Ab8RN6J4FetM19AdXkSiHOznPmpWRTzzCZsrj5p1kMmbLR_y-w"; // <-- IA de conversa
         const resultsContainer = document.getElementById('resultsContainer');
         const homeWidgets = document.getElementById('homeWidgets');
 
@@ -443,7 +486,7 @@
                         'X-API-KEY': SERPER_API_KEY,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ q: query, num: 10, page: page || 1 })
+                    body: JSON.stringify({ q: query, num: 10, page: page || 1, hl: 'pt-br', gl: 'br' })
                 });
                 const data = await res.json();
                 const results = (data.organic || [])
@@ -638,6 +681,7 @@
         function goHome() {
             document.getElementById('searchInput').value = '';
             resultsContainer.innerHTML = "";
+            document.getElementById('aiBox').style.display = 'none';
             homeWidgets.classList.remove('hidden');
             hideAutocomplete();
         }
@@ -734,8 +778,86 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // =====================================================================
+        // IA de conversa (Gemini) — resposta rápida focada em mercado/cripto,
+        // com opção de continuar perguntando sobre o mesmo assunto.
+        // =====================================================================
+        const aiBox = document.getElementById('aiBox');
+        const aiBoxText = document.getElementById('aiBoxText');
+        const aiChatLog = document.getElementById('aiChatLog');
+        const aiChatInput = document.getElementById('aiChatInput');
+        let aiChatHistory = []; // [{role: 'user'|'model', text: '...'}]
+
+        const AI_SYSTEM_PROMPT = 'Você é a IA do ReR Search, um buscador focado só em mercado financeiro, câmbio e criptomoedas. Responda sempre em português do Brasil, de forma curta e direta (no máximo 4 frases). Se a pergunta não tiver nenhuma relação com finanças, câmbio, criptomoedas ou mercado, diga educadamente que esse não é o foco do ReR Search.';
+
+        async function callGemini(messages) {
+            const contents = messages.map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: [{ text: m.text }]
+            }));
+            const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_instruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+                    contents: contents
+                })
+            });
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) throw new Error('sem resposta da IA');
+            return text.trim();
+        }
+
+        async function askGemini(query) {
+            if (!GEMINI_API_KEY) { aiBox.style.display = 'none'; return; }
+            aiChatHistory = [];
+            aiChatLog.innerHTML = '';
+            aiBox.style.display = 'block';
+            aiBoxText.textContent = 'Pensando...';
+            try {
+                const answer = await callGemini([{ role: 'user', text: query }]);
+                aiBoxText.textContent = answer;
+                aiChatHistory.push({ role: 'user', text: query });
+                aiChatHistory.push({ role: 'model', text: answer });
+            } catch (err) {
+                aiBoxText.textContent = 'Não consegui gerar uma resposta agora.';
+            }
+        }
+
+        async function sendAiChatMessage() {
+            const text = aiChatInput.value.trim();
+            if (!text) return;
+            aiChatInput.value = '';
+            const userMsg = document.createElement('div');
+            userMsg.className = 'ai-chat-msg user';
+            userMsg.textContent = text;
+            aiChatLog.appendChild(userMsg);
+
+            const thinkingMsg = document.createElement('div');
+            thinkingMsg.className = 'ai-chat-msg';
+            thinkingMsg.textContent = 'Pensando...';
+            aiChatLog.appendChild(thinkingMsg);
+
+            aiChatHistory.push({ role: 'user', text: text });
+            try {
+                const answer = await callGemini(aiChatHistory);
+                thinkingMsg.textContent = answer;
+                aiChatHistory.push({ role: 'model', text: answer });
+            } catch (err) {
+                thinkingMsg.textContent = 'Não consegui responder agora.';
+            }
+        }
+
+        document.getElementById('aiChatSendBtn').addEventListener('click', sendAiChatMessage);
+        aiChatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendAiChatMessage();
+        });
+
         async function runSearch(query) {
             hideAutocomplete();
+            document.getElementById('searchInput').value = query || '';
+            updateSearchIcons(query || '');
             if (!query || !query.trim()) {
                 resultsContainer.innerHTML = "";
                 homeWidgets.classList.remove('hidden');
@@ -747,6 +869,7 @@
             currentSearchPage = 1;
             homeWidgets.classList.add('hidden');
             resultsContainer.innerHTML = '<div class="no-results">Buscando...</div>';
+            askGemini(corrected); // dispara em paralelo, não trava o resto da busca
 
             const [tokenResults, webData] = await Promise.all([
                 fetchTokenResults(corrected),
@@ -784,11 +907,34 @@
             }
         }
 
+        const clearBtn = document.getElementById('clearBtn');
+        const voiceBtn2 = document.getElementById('voiceBtn');
+        const scannerBtn = document.getElementById('scannerBtn');
+
+        function updateSearchIcons(value) {
+            const hasText = !!value.trim();
+            clearBtn.style.display = hasText ? 'flex' : 'none';
+            voiceBtn2.style.display = hasText ? 'none' : 'flex';
+            scannerBtn.style.display = hasText ? 'none' : 'flex';
+        }
+
+        function clearSearchInput() {
+            const input = document.getElementById('searchInput');
+            input.value = '';
+            input.focus();
+            updateSearchIcons('');
+            resultsContainer.innerHTML = "";
+            document.getElementById('aiBox').style.display = 'none';
+            homeWidgets.classList.remove('hidden');
+            hideAutocomplete();
+        }
+
         document.getElementById('searchInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') runSearch(e.target.value);
         });
         document.getElementById('searchInput').addEventListener('input', (e) => {
             if (!e.target.value.trim()) { resultsContainer.innerHTML = ""; homeWidgets.classList.remove('hidden'); }
+            updateSearchIcons(e.target.value);
             updateAutocomplete(e.target.value);
         });
 
@@ -832,6 +978,7 @@
 
         function selectSuggestion(value) {
             document.getElementById('searchInput').value = value;
+            updateSearchIcons(value);
             hideAutocomplete();
             runSearch(value);
         }
@@ -1029,6 +1176,7 @@ loadHomeCards();
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
                 document.getElementById('searchInput').value = transcript;
+                updateSearchIcons(transcript);
                 runSearch(transcript);
             };
             recognition.onerror = () => btn.classList.remove('listening');
