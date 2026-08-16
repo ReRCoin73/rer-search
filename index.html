@@ -790,12 +790,10 @@
 
         const AI_SYSTEM_PROMPT = 'Você é a IA do ReR Search, um buscador focado só em mercado financeiro, câmbio e criptomoedas. Responda sempre em português do Brasil, de forma curta e direta (no máximo 4 frases). Se a pergunta não tiver nenhuma relação com finanças, câmbio, criptomoedas ou mercado, diga educadamente que esse não é o foco do ReR Search.';
 
-        async function callGemini(messages) {
-            const contents = messages.map(m => ({
-                role: m.role === 'user' ? 'user' : 'model',
-                parts: [{ text: m.text }]
-            }));
-            const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY, {
+        const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash']; // tenta o atual primeiro, cai pro anterior se falhar
+
+        async function callGeminiWithModel(model, contents) {
+            const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -804,9 +802,32 @@
                 })
             });
             const data = await res.json();
+            if (!res.ok) {
+                console.error('Gemini (' + model + ') erro:', data);
+                throw new Error(data.error?.message || 'erro na chamada');
+            }
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) throw new Error('sem resposta da IA');
+            if (!text) {
+                console.error('Gemini (' + model + ') sem texto na resposta:', data);
+                throw new Error('sem resposta da IA');
+            }
             return text.trim();
+        }
+
+        async function callGemini(messages) {
+            const contents = messages.map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: [{ text: m.text }]
+            }));
+            let lastErr = null;
+            for (const model of GEMINI_MODELS) {
+                try {
+                    return await callGeminiWithModel(model, contents);
+                } catch (err) {
+                    lastErr = err;
+                }
+            }
+            throw lastErr;
         }
 
         async function askGemini(query) {
@@ -1217,20 +1238,25 @@ loadHomeCards();
         }
 
         function scanQRLoop() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-                if (code && code.data) {
-                    status.textContent = "QR Code detectado: " + code.data;
-                    document.getElementById('searchInput').value = code.data;
-                    closeScanner();
-                    runSearch(code.data);
-                    return;
+            try {
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code && code.data) {
+                        status.textContent = "QR Code detectado: " + code.data;
+                        document.getElementById('searchInput').value = code.data;
+                        closeScanner();
+                        runSearch(code.data);
+                        return;
+                    }
                 }
+            } catch (err) {
+                console.error('Erro no loop do scanner:', err);
+                // não trava o loop por causa de um frame ruim — continua tentando
             }
             scanLoopId = requestAnimationFrame(scanQRLoop);
         }
